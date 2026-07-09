@@ -1,0 +1,22 @@
+services:
+  mathpal:
+    build: .
+    container_name: mathpal
+    ports:
+      - "8787:8787"
+    environment:
+      # The container reaches the Ollama server running on this PC via the
+      # special host alias. Cloud AI keys can be added here too:
+      # - ANTHROPIC_API_KEY=sk-ant-...
+      # - GEMINI_API_KEY=...
+      # - OPENAI_API_KEY=...
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Elena's data (questions answered, points, chat logs) survives rebuilds
+      - mathpal-data:/app/server/data
+    restart: unless-stopped
+
+volumes:
+  mathpal-data:
