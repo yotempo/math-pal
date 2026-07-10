@@ -12,7 +12,10 @@ interface Run {
   level: { id: number; name: string; emoji: string; bonus: number; passCorrect: number };
   questions: RunQuestion[];
 }
-interface FinishResult { correct: number; total: number; stars: number; passed: boolean; points: number; balance: number }
+interface FinishResult {
+  correct: number; total: number; stars: number; passed: boolean; points: number; balance: number;
+  questAwards?: { key: string; label: string; emoji: string; points: number }[];
+}
 
 export default function Challenge({ onPointsChange }: { onPointsChange: () => void }) {
   const [levels, setLevels] = useState<Level[]>([]);
@@ -71,6 +74,11 @@ export default function Challenge({ onPointsChange }: { onPointsChange: () => vo
             {'★'.repeat(finish.stars)}{'☆'.repeat(3 - finish.stars)}
           </p>
           <p className="sub mt">{finish.correct} / {finish.total} correct · +{finish.points} points ⭐</p>
+          {finish.questAwards?.map((a) => (
+            <div key={a.key} className="feedback good" style={{ marginBottom: 8 }}>
+              {a.emoji} Quest complete: {a.label} +{a.points}⭐
+            </div>
+          ))}
           <div className="row" style={{ justifyContent: 'center' }}>
             <button className="btn" onClick={() => { setRun(null); setFinish(null); }}>Back to levels</button>
           </div>

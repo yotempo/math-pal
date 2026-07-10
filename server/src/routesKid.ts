@@ -5,6 +5,7 @@ import { checkAnswer } from './answers.js';
 import { registerQuestion, getPending, removePending } from './pending.js';
 import { aiAvailable } from './tutor.js';
 import { enabledTopicSet, enabledTopicsFor } from './curriculum.js';
+import { evaluateQuests, practiceStreak } from './quests.js';
 
 export const kidRouter = Router();
 
@@ -132,9 +133,11 @@ kidRouter.post('/answer', (req, res) => {
     const pts = pointsFor(q.kind, q.difficulty, q.attempts, q.revealed);
     addPoints(pts, `Solved ${q.kind} (${q.topic}, level ${q.difficulty})`);
     removePending(token);
+    // Daily quests / streak may have just completed with this answer.
+    const questAwards = evaluateQuests().newAwards;
     return res.json({
       correct: true, points: pts, balance: pointsBalance(),
-      explanation: q.explanation, attemptNo: q.attempts,
+      explanation: q.explanation, attemptNo: q.attempts, questAwards,
     });
   }
 
@@ -160,24 +163,9 @@ kidRouter.get('/progress', (_req, res) => {
   ).all();
   const today = db.prepare(
     `SELECT COUNT(*) AS n, COALESCE(SUM(correct), 0) AS c FROM attempts
-     WHERE attempt_no = 1 AND date(created_at) = date('now')`
+     WHERE attempt_no = 1 AND date(created_at,'localtime') = date('now','localtime')`
   ).get() as { n: number; c: number };
-  const streakRows = db.prepare(
-    `SELECT DISTINCT date(created_at) AS day FROM attempts ORDER BY day DESC LIMIT 60`
-  ).all() as { day: string }[];
-
-  let streak = 0;
-  const dayMs = 86400000;
-  const toUtcDay = (s: string) => Math.floor(new Date(s + 'T00:00:00Z').getTime() / dayMs);
-  const todayDay = Math.floor(Date.now() / dayMs);
-  for (let i = 0; i < streakRows.length; i++) {
-    const expected = todayDay - i;
-    const actual = toUtcDay(streakRows[i].day);
-    if (actual === expected || (i === 0 && actual === expected - 1)) streak += 1;
-    else break;
-  }
-
-  res.json({ points: pointsBalance(), today, streak, perTopic });
+  res.json({ points: pointsBalance(), today, streak: practiceStreak(), perTopic });
 });
 
 // ---- challenges -----------------------------------------------------------
@@ -299,7 +287,15 @@ kidRouter.post('/challenges/runs/:runId/finish', (req, res) => {
   addPoints(points, `Challenge "${level.name}": ${correct}/${total}${passed ? ' + bonus' : ''}`);
 
   db.prepare('UPDATE challenge_runs SET finished = 1, stars = ? WHERE id = ?').run(stars, run.id);
-  res.json({ correct, total, stars, passed, points, balance: pointsBalance() });
+  const questAwards = evaluateQuests().newAwards;
+  res.json({ correct, total, stars, passed, points, balance: pointsBalance(), questAwards });
+});
+
+// ---- daily quests -----------------------------------------------------------
+
+kidRouter.get('/quests', (_req, res) => {
+  const { day, quests, streak, sweepDone, newAwards } = evaluateQuests();
+  res.json({ day, quests, streak, sweepDone, newAwards, balance: pointsBalance() });
 });
 
 // ---- rewards --------------------------------------------------------------

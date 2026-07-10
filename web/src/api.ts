@@ -50,6 +50,33 @@ export interface Question {
   answerType: string;
 }
 
+export interface QuestAward {
+  key: string;
+  label: string;
+  emoji: string;
+  points: number;
+}
+
+export interface Quest {
+  key: string;
+  emoji: string;
+  label: string;
+  target: number;
+  points: number;
+  progress: number;
+  done: boolean;
+  awarded: boolean;
+}
+
+export interface QuestsData {
+  day: string;
+  quests: Quest[];
+  streak: number;
+  sweepDone: boolean;
+  newAwards: QuestAward[];
+  balance: number;
+}
+
 export interface AnswerResult {
   correct: boolean;
   points?: number;
@@ -57,6 +84,7 @@ export interface AnswerResult {
   explanation?: string;
   attemptNo: number;
   hint?: string | null;
+  questAwards?: QuestAward[];
 }
 
 export interface AppState {

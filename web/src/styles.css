@@ -160,5 +160,12 @@ table.data th { color: var(--muted); font-size: 12px; text-transform: uppercase;
 }
 .pill-options button.selected { border-color: var(--primary); background: #fff7ed; color: var(--primary-dark); }
 
+/* daily quests */
+.quest-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.quest-emoji { font-size: 26px; }
+.quest-body { flex: 1; }
+.quest-label { font-weight: 700; font-size: 15px; }
+.quest-points { font-weight: 800; color: var(--gold); white-space: nowrap; font-size: 14px; }
+
 .result-burst { font-size: 60px; text-align: center; margin: 10px 0; animation: pop 0.4s ease; }
 @keyframes pop { 0% { transform: scale(0.3); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }

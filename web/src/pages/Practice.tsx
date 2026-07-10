@@ -147,6 +147,11 @@ export default function Practice({ onPointsChange, state }: { onPointsChange: ()
                 Correct! +{result?.points} points ⭐
                 {result?.explanation && <div style={{ fontWeight: 500, marginTop: 8 }}>{result.explanation}</div>}
               </div>
+              {result?.questAwards?.map((a) => (
+                <div key={a.key} className="feedback good" style={{ marginTop: 8 }}>
+                  {a.emoji} Quest complete: {a.label} +{a.points}⭐
+                </div>
+              ))}
             </>
           )}
 

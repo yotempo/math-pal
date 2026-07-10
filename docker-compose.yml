@@ -5,6 +5,8 @@ services:
     ports:
       - "8787:8787"
     environment:
+      # Local timezone so "today" for daily quests/streaks matches the family's day
+      - TZ=Asia/Taipei
       # The container reaches the Ollama server running on this PC via the
       # special host alias. Cloud AI keys can be added here too:
       # - ANTHROPIC_API_KEY=sk-ant-...

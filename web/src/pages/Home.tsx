@@ -1,5 +1,39 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { AppState } from '../api';
+import { apiGet, type AppState, type QuestsData } from '../api';
+
+function QuestCard() {
+  const [data, setData] = useState<QuestsData | null>(null);
+
+  useEffect(() => { apiGet<QuestsData>('/quests').then(setData).catch(() => {}); }, []);
+  if (!data) return null;
+
+  return (
+    <div className="card" style={{ marginTop: 20 }}>
+      <div className="row">
+        <h2 style={{ marginBottom: 0 }}>🎯 Today's Quests</h2>
+        <div className="spacer" />
+        {data.streak >= 2 && <span className="badge" style={{ fontSize: 15 }}>🔥 {data.streak}-day streak!</span>}
+      </div>
+      {data.quests.map((q) => (
+        <div key={q.key} className="quest-row">
+          <span className="quest-emoji">{q.emoji}</span>
+          <div className="quest-body">
+            <div className="quest-label">
+              {q.label}
+              <span className="muted" style={{ marginLeft: 8 }}>{q.done ? '✅' : `${q.progress}/${q.target}`}</span>
+            </div>
+            <div className="progress-bar" style={{ margin: '4px 0 0' }}>
+              <div style={{ width: `${(q.progress / q.target) * 100}%` }} />
+            </div>
+          </div>
+          <span className="quest-points">{q.awarded ? '⭐ paid!' : `+${q.points}⭐`}</span>
+        </div>
+      ))}
+      {data.sweepDone && <div className="feedback good" style={{ marginTop: 10 }}>🎉 Daily sweep complete — all quests done today!</div>}
+    </div>
+  );
+}
 
 export default function Home({ state }: { state: AppState | null }) {
   const name = state?.studentName || 'champ';
@@ -10,6 +44,8 @@ export default function Home({ state }: { state: AppState | null }) {
     <div>
       <h1>{greeting}, {name}! 👋</h1>
       <p className="sub">Ready to rally? Pick your training for today.</p>
+
+      <QuestCard />
 
       <div className="big-menu">
         <Link className="tile" to="/practice/arithmetic">

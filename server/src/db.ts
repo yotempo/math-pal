@@ -93,6 +93,17 @@ CREATE TABLE IF NOT EXISTS tutor_notes (
   note TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS daily_quests (
+  day TEXT PRIMARY KEY,
+  quests TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS daily_awards (
+  day TEXT NOT NULL,
+  key TEXT NOT NULL,
+  points INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (day, key)
+);
 CREATE TABLE IF NOT EXISTS ai_chats (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   token TEXT NOT NULL,
