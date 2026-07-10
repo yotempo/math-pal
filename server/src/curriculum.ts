@@ -6,45 +6,50 @@ import { getSetting } from './db.js';
 // The enabled set is enforced server-side everywhere questions come from:
 // practice drills, word-problem picks, challenge levels, and AI generation.
 
+export interface BilingualLabel {
+  zh: string;
+  en: string;
+}
+
 export interface CurriculumTopic {
   key: string;
-  label: string; // admin-facing (Traditional Chinese)
+  label: BilingualLabel; // admin-facing; the admin UI picks by its language setting
   kinds: ('arithmetic' | 'word')[];
 }
 
 export interface CurriculumGroup {
   key: string;
-  label: string;
+  label: BilingualLabel;
   topics: CurriculumTopic[];
 }
 
 export const CURRICULUM: CurriculumGroup[] = [
   {
     key: 'saxon2',
-    label: 'Saxon Course 2（複習）',
+    label: { zh: 'Saxon Course 2（複習）', en: 'Saxon Course 2 (review)' },
     topics: [
-      { key: 'add_sub', label: '加減法（含小數）', kinds: ['arithmetic'] },
-      { key: 'mult', label: '乘法', kinds: ['arithmetic'] },
-      { key: 'div', label: '除法', kinds: ['arithmetic'] },
-      { key: 'fractions', label: '分數', kinds: ['arithmetic', 'word'] },
-      { key: 'decimals', label: '小數', kinds: ['arithmetic'] },
-      { key: 'percent', label: '百分比', kinds: ['arithmetic', 'word'] },
-      { key: 'integers', label: '負數', kinds: ['arithmetic'] },
-      { key: 'order_ops', label: '運算順序', kinds: ['arithmetic'] },
-      { key: 'multi_step', label: '多步驟應用題', kinds: ['word'] },
-      { key: 'ratio', label: '比與比例應用', kinds: ['word'] },
-      { key: 'rate', label: '速率／單價', kinds: ['word'] },
-      { key: 'average', label: '平均數', kinds: ['word'] },
+      { key: 'add_sub', label: { zh: '加減法（含小數）', en: 'Addition & subtraction' }, kinds: ['arithmetic'] },
+      { key: 'mult', label: { zh: '乘法', en: 'Multiplication' }, kinds: ['arithmetic'] },
+      { key: 'div', label: { zh: '除法', en: 'Division' }, kinds: ['arithmetic'] },
+      { key: 'fractions', label: { zh: '分數', en: 'Fractions' }, kinds: ['arithmetic', 'word'] },
+      { key: 'decimals', label: { zh: '小數', en: 'Decimals' }, kinds: ['arithmetic'] },
+      { key: 'percent', label: { zh: '百分比', en: 'Percentages' }, kinds: ['arithmetic', 'word'] },
+      { key: 'integers', label: { zh: '負數', en: 'Negative numbers' }, kinds: ['arithmetic'] },
+      { key: 'order_ops', label: { zh: '運算順序', en: 'Order of operations' }, kinds: ['arithmetic'] },
+      { key: 'multi_step', label: { zh: '多步驟應用題', en: 'Multi-step problems' }, kinds: ['word'] },
+      { key: 'ratio', label: { zh: '比與比例應用', en: 'Ratios' }, kinds: ['word'] },
+      { key: 'rate', label: { zh: '速率／單價', en: 'Rates & unit price' }, kinds: ['word'] },
+      { key: 'average', label: { zh: '平均數', en: 'Averages' }, kinds: ['word'] },
     ],
   },
   {
     key: 'saxon3',
-    label: 'Saxon Course 3（先修）',
+    label: { zh: 'Saxon Course 3（先修）', en: 'Saxon Course 3 (preview)' },
     topics: [
-      { key: 'exponents_roots', label: '次方與開根號', kinds: ['arithmetic'] },
-      { key: 'equations', label: '解方程式', kinds: ['arithmetic', 'word'] },
-      { key: 'proportions', label: '比例式', kinds: ['arithmetic'] },
-      { key: 'geometry', label: '幾何（周長／面積／圓）', kinds: ['arithmetic', 'word'] },
+      { key: 'exponents_roots', label: { zh: '次方與開根號', en: 'Powers & square roots' }, kinds: ['arithmetic'] },
+      { key: 'equations', label: { zh: '解方程式', en: 'Solving equations' }, kinds: ['arithmetic', 'word'] },
+      { key: 'proportions', label: { zh: '比例式', en: 'Proportion equations' }, kinds: ['arithmetic'] },
+      { key: 'geometry', label: { zh: '幾何（周長／面積／圓）', en: 'Geometry (perimeter/area/circles)' }, kinds: ['arithmetic', 'word'] },
     ],
   },
 ];

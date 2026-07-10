@@ -13,7 +13,7 @@ let pinFailures = 0;
 let pinLockedUntil = 0;
 function requirePin(req: Request, res: Response, next: NextFunction) {
   if (Date.now() < pinLockedUntil) {
-    return res.status(429).json({ error: 'PIN 錯誤次數過多，請 15 分鐘後再試' });
+    return res.status(429).json({ error: 'PIN 錯誤次數過多，請 15 分鐘後再試 / Too many wrong PINs — try again in 15 minutes' });
   }
   const pin = req.header('x-admin-pin');
   if (!pin || pin !== getSetting('admin_pin')) {
@@ -91,7 +91,7 @@ adminRouter.put('/settings', (req, res) => {
       const arr = JSON.parse(String(body.enabled_topics));
       if (Array.isArray(arr)) topics = arr.filter((k) => typeof k === 'string' && ALL_TOPIC_KEYS.includes(k));
     } catch { /* invalid JSON → rejected below */ }
-    if (!topics.length) return res.status(400).json({ error: '課程範圍至少要勾選一個主題' });
+    if (!topics.length) return res.status(400).json({ error: '課程範圍至少要勾選一個主題 / At least one topic must stay checked' });
     setSetting('enabled_topics', JSON.stringify(topics));
   }
 

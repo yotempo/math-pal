@@ -202,7 +202,7 @@ export function getLatestJob(): GenJob | null {
 
 export function startGeneration(opts: GenerateOptions): { ok: true; job: GenJob } | { ok: false; error: string } {
   if (latestJob && latestJob.status === 'running') {
-    return { ok: false, error: '已有一批題目在生成中，請等它完成。' };
+    return { ok: false, error: '已有一批題目在生成中，請等它完成 / A generation batch is already running.' };
   }
   const count = Math.min(3, Math.max(1, Math.round(opts.count) || 1));
   const job: GenJob = {

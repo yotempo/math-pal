@@ -1,10 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { adminFetch, getPin, setPin } from '../api';
+import { I18nContext, getAdminLang, saveAdminLang, translate, pickLabel, useT, type AdminLang } from '../i18n';
 
 type Tab = 'overview' | 'questions' | 'rewards' | 'redemptions' | 'chats' | 'settings';
 
+function LangSwitch() {
+  const { lang, setLang } = useT();
+  return (
+    <div className="pill-options" style={{ marginLeft: 'auto' }}>
+      {(['zh', 'en'] as AdminLang[]).map((l) => (
+        <button key={l} className={lang === l ? 'selected' : ''} onClick={() => setLang(l)}>
+          {l === 'zh' ? '中文' : 'EN'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function Admin() {
+  const [lang, setLangState] = useState<AdminLang>(getAdminLang());
+  const i18n = useMemo(() => ({
+    lang,
+    t: (key: any, ...args: (string | number)[]) => translate(lang, key, ...args),
+    setLang: (l: AdminLang) => { saveAdminLang(l); setLangState(l); },
+  }), [lang]);
+
+  return (
+    <I18nContext.Provider value={i18n}>
+      <AdminInner />
+    </I18nContext.Provider>
+  );
+}
+
+function AdminInner() {
+  const { t } = useT();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [pinInput, setPinInput] = useState('');
   const [tab, setTab] = useState<Tab>('overview');
@@ -19,39 +49,48 @@ export default function Admin() {
     try {
       await adminFetch('/ping');
       setAuthed(true);
-    } catch {
+    } catch (e) {
       setAuthed(false);
-      alert('PIN 錯誤');
+      alert(e instanceof Error && e.message !== 'Wrong PIN' ? e.message : t('wrongPin'));
     }
   }
 
-  if (authed === null) return <div className="card center">載入中...</div>;
+  if (authed === null) return <div className="card center">{t('loading')}</div>;
 
   if (!authed) {
     return (
-      <div className="card" style={{ maxWidth: 400, margin: '40px auto' }}>
-        <h2>👨‍👧 家長後台</h2>
-        <p className="muted">請輸入 PIN 碼（預設 1234，可在設定中修改）</p>
+      <div className="card" style={{ maxWidth: 420, margin: '40px auto' }}>
+        <div className="row">
+          <h2>{t('adminTitle')}</h2>
+          <LangSwitch />
+        </div>
+        <p className="muted">{t('pinPrompt')}</p>
         <div className="answer-row mt">
           <input className="answer-input" type="password" inputMode="numeric" value={pinInput}
             onChange={(e) => setPinInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && tryLogin()} />
-          <button className="btn" onClick={tryLogin}>進入</button>
+          <button className="btn" onClick={tryLogin}>{t('enter')}</button>
         </div>
-        <p className="mt"><Link to="/">← 回首頁</Link></p>
+        <p className="mt"><Link to="/">{t('backHome')}</Link></p>
       </div>
     );
   }
 
+  const tabs: [Tab, string][] = [
+    ['overview', t('tabOverview')], ['questions', t('tabQuestions')], ['rewards', t('tabRewards')],
+    ['redemptions', t('tabRedemptions')], ['chats', t('tabChats')], ['settings', t('tabSettings')],
+  ];
+
   return (
     <div>
       <div className="row">
-        <Link to="/" className="btn ghost small">← 回首頁</Link>
-        <h1 style={{ fontSize: 24 }}>👨‍👧 家長後台</h1>
+        <Link to="/" className="btn ghost small">{t('backHome')}</Link>
+        <h1 style={{ fontSize: 24 }}>{t('adminTitle')}</h1>
+        <LangSwitch />
       </div>
       <div className="admin-tabs mt">
-        {([['overview', '總覽'], ['questions', '題庫'], ['rewards', '獎品'], ['redemptions', '兌換審核'], ['chats', 'AI 對話'], ['settings', '設定']] as [Tab, string][]).map(([t, label]) => (
-          <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>{label}</button>
+        {tabs.map(([key, label]) => (
+          <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>{label}</button>
         ))}
       </div>
       {tab === 'overview' && <Overview />}
@@ -64,9 +103,10 @@ export default function Admin() {
   );
 }
 
-// ---------------- 總覽 ----------------
+// ---------------- Overview ----------------
 
 function Overview() {
+  const { t } = useT();
   const [data, setData] = useState<any>(null);
   const [delta, setDelta] = useState('');
   const [reason, setReason] = useState('');
@@ -77,59 +117,59 @@ function Overview() {
   async function adjust() {
     const n = parseInt(delta, 10);
     if (!n) return;
-    await adminFetch('/points', 'POST', { delta: n, reason: reason || '家長調整' });
+    await adminFetch('/points', 'POST', { delta: n, reason: reason || t('parentAdjust') });
     setDelta(''); setReason('');
     load();
   }
 
-  if (!data) return <div className="card center">載入中...</div>;
+  if (!data) return <div className="card center">{t('loading')}</div>;
   const acc = data.week.total ? Math.round((100 * data.week.correct) / data.week.total) : null;
 
   return (
     <>
       <div className="card">
-        <h2>本週狀況</h2>
-        <p>目前積分：<b>⭐ {data.points}</b> ｜ 近 7 天答題：<b>{data.week.total}</b> 題
-          {acc !== null && <>｜ 正確率：<b>{acc}%</b></>}
-          ｜ 待審核兌換：<b>{data.pendingRedemptions}</b></p>
+        <h2>{t('weekTitle')}</h2>
+        <p>{t('currentPoints')}：<b>⭐ {data.points}</b> ｜ {t('answered7d')}：<b>{data.week.total}</b>
+          {acc !== null && <>｜ {t('accuracy')}：<b>{acc}%</b></>}
+          ｜ {t('pendingRedemptions')}：<b>{data.pendingRedemptions}</b></p>
         <div className="row mt">
-          <input className="answer-input" style={{ maxWidth: 130, fontSize: 16 }} placeholder="±積分" value={delta} onChange={(e) => setDelta(e.target.value)} />
-          <input className="answer-input" style={{ fontSize: 16 }} placeholder="原因（例如：主動幫忙做家事）" value={reason} onChange={(e) => setReason(e.target.value)} />
-          <button className="btn small" onClick={adjust}>調整積分</button>
+          <input className="answer-input" style={{ maxWidth: 130, fontSize: 16 }} placeholder={t('deltaPlaceholder')} value={delta} onChange={(e) => setDelta(e.target.value)} />
+          <input className="answer-input" style={{ fontSize: 16 }} placeholder={t('reasonPlaceholder')} value={reason} onChange={(e) => setReason(e.target.value)} />
+          <button className="btn small" onClick={adjust}>{t('adjustPoints')}</button>
         </div>
       </div>
 
       <div className="card">
-        <h2>各主題正確率（首次作答）</h2>
+        <h2>{t('topicAccuracy')}</h2>
         <table className="data">
-          <thead><tr><th>主題</th><th>類型</th><th>題數</th><th>正確率</th></tr></thead>
+          <thead><tr><th>{t('colTopic')}</th><th>{t('colKind')}</th><th>{t('colCount')}</th><th>{t('accuracy')}</th></tr></thead>
           <tbody>
-            {data.perTopic.map((t: any, i: number) => (
+            {data.perTopic.map((row: any, i: number) => (
               <tr key={i}>
-                <td>{t.topic}</td>
-                <td>{t.kind === 'word' ? '應用題' : '算術'}</td>
-                <td>{t.total}</td>
-                <td style={{ color: t.correct / t.total < 0.7 ? 'var(--red)' : 'var(--green)' }}>
-                  {Math.round((100 * t.correct) / t.total)}%
+                <td>{row.topic}</td>
+                <td>{row.kind === 'word' ? t('kindWord') : t('kindArith')}</td>
+                <td>{row.total}</td>
+                <td style={{ color: row.correct / row.total < 0.7 ? 'var(--red)' : 'var(--green)' }}>
+                  {Math.round((100 * row.correct) / row.total)}%
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        <p className="muted mt">紅色 = 正確率低於 70%，AI 家教會自動針對弱項多加引導。</p>
+        <p className="muted mt">{t('redNote')}</p>
       </div>
 
       <div className="card">
-        <h2>最近作答紀錄</h2>
+        <h2>{t('recentAttempts')}</h2>
         <table className="data">
-          <thead><tr><th>時間</th><th>題目</th><th>作答</th><th>結果</th></tr></thead>
+          <thead><tr><th>{t('colTime')}</th><th>{t('colQuestion')}</th><th>{t('colGiven')}</th><th>{t('colResult')}</th></tr></thead>
           <tbody>
             {data.recent.map((a: any, i: number) => (
               <tr key={i}>
                 <td style={{ whiteSpace: 'nowrap' }}>{a.created_at.slice(5, 16)}</td>
                 <td>{a.prompt.slice(0, 60)}{a.prompt.length > 60 ? '…' : ''}</td>
                 <td>{a.given}</td>
-                <td>{a.correct ? '✅' : '❌'}{a.attempt_no > 1 ? ` (第${a.attempt_no}次)` : ''}</td>
+                <td>{a.correct ? '✅' : '❌'}{a.attempt_no > 1 ? t('attemptNo', a.attempt_no) : ''}</td>
               </tr>
             ))}
           </tbody>
@@ -137,7 +177,7 @@ function Overview() {
       </div>
 
       <div className="card">
-        <h2>積分紀錄</h2>
+        <h2>{t('pointsLedger')}</h2>
         <table className="data">
           <tbody>
             {data.ledger.map((l: any, i: number) => (
@@ -154,7 +194,7 @@ function Overview() {
   );
 }
 
-// ---------------- 題庫 ----------------
+// ---------------- Questions ----------------
 
 const TOPIC_OPTIONS = ['multi_step', 'fractions', 'percent', 'ratio', 'rate', 'average', 'geometry', 'equations'];
 const THEME_OPTIONS = ['volleyball', 'haikyuu', 'mha', 'general'];
@@ -165,6 +205,7 @@ const emptyQuestion = {
 };
 
 function GeneratePanel({ onDone }: { onDone: () => void }) {
+  const { t } = useT();
   const [topic, setTopic] = useState('auto');
   const [difficulty, setDifficulty] = useState('auto');
   const [theme, setTheme] = useState('mixed');
@@ -200,7 +241,6 @@ function GeneratePanel({ onDone }: { onDone: () => void }) {
     setError('');
     try {
       await adminFetch('/generate', 'POST', { topic, difficulty, theme, count });
-      // start polling the new job
       const j = await adminFetch<any>('/generate/latest');
       setJob(j);
       const tick = async () => {
@@ -211,36 +251,34 @@ function GeneratePanel({ onDone }: { onDone: () => void }) {
       };
       window.setTimeout(tick, 4000);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '生成失敗');
+      setError(e instanceof Error ? e.message : t('genFailed'));
     }
   }
 
   return (
     <div className="card">
-      <h2>🤖 AI 出題</h2>
-      <p className="muted">AI 生成後會由另一個獨立 AI「盲解」驗證答案（看不到出題者的答案），再進待審核區——你批准後才會出現在題目池裡。</p>
+      <h2>{t('genTitle')}</h2>
+      <p className="muted">{t('genDesc')}</p>
       <div className="row mt">
         <select value={topic} onChange={(e) => setTopic(e.target.value)}>
-          <option value="auto">主題：自動（優先弱項）</option>
-          {TOPIC_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+          <option value="auto">{t('topicAuto')}</option>
+          {TOPIC_OPTIONS.map((tp) => <option key={tp} value={tp}>{tp}</option>)}
         </select>
         <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
-          <option value="auto">難度：自動</option>
-          {['1', '2', '3', '4', '5'].map((d) => <option key={d} value={d}>難度 {d}</option>)}
+          <option value="auto">{t('diffAuto')}</option>
+          {['1', '2', '3', '4', '5'].map((d) => <option key={d} value={d}>{t('diffN', d)}</option>)}
         </select>
         <select value={theme} onChange={(e) => setTheme(e.target.value)}>
-          <option value="mixed">風格：隨機</option>
-          {THEME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+          <option value="mixed">{t('themeRandom')}</option>
+          {THEME_OPTIONS.map((th) => <option key={th} value={th}>{th}</option>)}
         </select>
         <select value={count} onChange={(e) => setCount(parseInt(e.target.value, 10))}>
-          {[1, 2, 3].map((n) => <option key={n} value={n}>{n} 題</option>)}
+          {[1, 2, 3].map((n) => <option key={n} value={n}>{t('countN', n)}</option>)}
         </select>
-        <button className="btn small" onClick={run} disabled={running}>{running ? '生成中…' : '生成'}</button>
+        <button className="btn small" onClick={run} disabled={running}>{running ? t('generating') : t('generate')}</button>
       </div>
       {running && (
-        <p className="muted mt">
-          生成 + 盲解驗證中（{job.items.length}/{job.total} 完成）…本地模型每題約 1-3 分鐘，可以先去別的分頁，回來看結果。
-        </p>
+        <p className="muted mt">{t('genProgress', job.items.length, job.total)}</p>
       )}
       {error && <div className="feedback bad">{error}</div>}
       {job && job.items.length > 0 && (
@@ -250,19 +288,19 @@ function GeneratePanel({ onDone }: { onDone: () => void }) {
               {it.ok ? (
                 <>
                   {it.verified
-                    ? '✅ 盲解驗證通過'
+                    ? t('verifiedPass')
                     : it.solverFailed
-                      ? '⚠️ 盲解執行失敗（AI 連線問題）— 請自行驗算後再上架'
-                      : `⚠️ 盲解不一致（出題者答 ${it.answer}，解題者答 ${it.solverAnswer}）— 建議自己算過或刪除`}
+                      ? t('solverFailedMsg')
+                      : t('mismatch', it.answer, it.solverAnswer)}
                   <div style={{ marginTop: 6 }}>{it.prompt}</div>
-                  <div className="muted">答案：{it.answer}｜{it.topic}｜難度 {it.difficulty}</div>
+                  <div className="muted">{t('answerLabel')}：{it.answer}｜{it.topic}｜{t('diffN', it.difficulty)}</div>
                 </>
               ) : (
-                <>❌ 生成失敗：{it.error}</>
+                <>❌ {t('genFailed')}：{it.error}</>
               )}
             </div>
           ))}
-          {job.status === 'done' && <p className="muted mt">已放入下方題庫（待審核），確認沒問題後按「上架」。</p>}
+          {job.status === 'done' && <p className="muted mt">{t('genDone')}</p>}
         </div>
       )}
     </div>
@@ -270,6 +308,7 @@ function GeneratePanel({ onDone }: { onDone: () => void }) {
 }
 
 function Questions() {
+  const { t } = useT();
   const [list, setList] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
 
@@ -284,16 +323,16 @@ function Questions() {
       setEditing(null);
       load();
     } catch (e) {
-      alert(`儲存失敗：${e instanceof Error ? e.message : e}`);
+      alert(`${t('saveFailed')}: ${e instanceof Error ? e.message : e}`);
     }
   }
 
   async function remove(id: number) {
-    if (!confirm('確定刪除這一題？作答紀錄會保留。')) return;
+    if (!confirm(t('confirmDelete'))) return;
     try {
       await adminFetch(`/questions/${id}`, 'DELETE');
     } catch (e) {
-      alert(`刪除失敗：${e instanceof Error ? e.message : e}`);
+      alert(`${t('deleteFailed')}: ${e instanceof Error ? e.message : e}`);
     }
     load();
   }
@@ -303,57 +342,57 @@ function Questions() {
     while (hints.length < 3) hints.push('');
     return (
       <div className="card">
-        <h2>{editing.id ? '編輯題目' : '新增應用題'}</h2>
+        <h2>{editing.id ? t('editQuestion') : t('newQuestion')}</h2>
         <div className="form-col mt">
-          <label>題目（英文，Elena 用英文學數學）
+          <label>{t('fieldPrompt')}
             <textarea value={editing.prompt} onChange={(e) => setEditing({ ...editing, prompt: e.target.value })} />
           </label>
           <div className="form-grid">
-            <label>答案
+            <label>{t('answerLabel')}
               <input value={editing.answer} onChange={(e) => setEditing({ ...editing, answer: e.target.value })} />
             </label>
-            <label>答案格式
+            <label>{t('fieldAnswerType')}
               <select value={editing.answer_type} onChange={(e) => setEditing({ ...editing, answer_type: e.target.value })}>
-                <option value="number">數字</option>
-                <option value="fraction">分數</option>
-                <option value="text">文字（如 5:15 PM）</option>
+                <option value="number">{t('typeNumber')}</option>
+                <option value="fraction">{t('typeFraction')}</option>
+                <option value="text">{t('typeText')}</option>
               </select>
             </label>
-            <label>主題
+            <label>{t('colTopic')}
               <select value={editing.topic} onChange={(e) => setEditing({ ...editing, topic: e.target.value })}>
-                {TOPIC_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                {TOPIC_OPTIONS.map((tp) => <option key={tp} value={tp}>{tp}</option>)}
               </select>
             </label>
-            <label>難度 (1-5)
+            <label>{t('fieldDifficulty')}
               <input type="number" min={1} max={5} value={editing.difficulty}
                 onChange={(e) => setEditing({ ...editing, difficulty: parseInt(e.target.value, 10) || 2 })} />
             </label>
-            <label>風格主題
+            <label>{t('fieldTheme')}
               <select value={editing.theme} onChange={(e) => setEditing({ ...editing, theme: e.target.value })}>
-                {THEME_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                {THEME_OPTIONS.map((th) => <option key={th} value={th}>{th}</option>)}
               </select>
             </label>
-            <label>啟用
+            <label>{t('fieldActive')}
               <select value={editing.active} onChange={(e) => setEditing({ ...editing, active: parseInt(e.target.value, 10) })}>
-                <option value={1}>啟用</option>
-                <option value={0}>停用</option>
+                <option value={1}>{t('statusActive')}</option>
+                <option value={0}>{t('statusInactive')}</option>
               </select>
             </label>
           </div>
           {hints.map((h: string, i: number) => (
-            <label key={i}>提示 {i + 1}（由淺到深）
+            <label key={i}>{t('hintN', i + 1)}
               <input value={h} onChange={(e) => {
                 const next = [...hints]; next[i] = e.target.value;
                 setEditing({ ...editing, hints: next });
               }} />
             </label>
           ))}
-          <label>詳解（答對後顯示）
+          <label>{t('fieldExplanation')}
             <textarea value={editing.explanation} onChange={(e) => setEditing({ ...editing, explanation: e.target.value })} />
           </label>
           <div className="row">
-            <button className="btn" onClick={save} disabled={!editing.prompt.trim() || !editing.answer.trim()}>儲存</button>
-            <button className="btn ghost" onClick={() => setEditing(null)}>取消</button>
+            <button className="btn" onClick={save} disabled={!editing.prompt.trim() || !editing.answer.trim()}>{t('save')}</button>
+            <button className="btn ghost" onClick={() => setEditing(null)}>{t('cancel')}</button>
           </div>
         </div>
       </div>
@@ -361,11 +400,11 @@ function Questions() {
   }
 
   async function approve(q: any) {
-    if (!q.verified && !confirm('這一題「盲解驗證」沒有通過——建議先自己算一遍確認答案正確。仍要上架嗎？')) return;
+    if (!q.verified && !confirm(t('confirmUnverified'))) return;
     try {
       await adminFetch(`/questions/${q.id}/approve`, 'POST');
     } catch (e) {
-      alert(`上架失敗：${e instanceof Error ? e.message : e}`);
+      alert(`${t('publishFailed')}: ${e instanceof Error ? e.message : e}`);
     }
     load();
   }
@@ -377,29 +416,29 @@ function Questions() {
       <GeneratePanel onDone={load} />
       <div className="card">
         <div className="row">
-          <h2>應用題題庫（{list.length} 題{pendingAi ? `，${pendingAi} 題 AI 待審核` : ''}）</h2>
+          <h2>{t('qBankTitle', list.length, pendingAi ? t('pendingSuffix', pendingAi) : '')}</h2>
           <div className="spacer" />
-          <button className="btn small" onClick={() => setEditing({ ...emptyQuestion })}>＋ 新增題目</button>
+          <button className="btn small" onClick={() => setEditing({ ...emptyQuestion })}>{t('addQuestion')}</button>
         </div>
         <table className="data mt">
-          <thead><tr><th>題目</th><th>答案</th><th>主題</th><th>難度</th><th>狀態</th><th></th></tr></thead>
+          <thead><tr><th>{t('colQuestion')}</th><th>{t('answerLabel')}</th><th>{t('colTopic')}</th><th>{t('fieldDifficulty')}</th><th>{t('colStatus')}</th><th></th></tr></thead>
           <tbody>
             {list.map((q) => (
               <tr key={q.id} style={{ opacity: q.active ? 1 : 0.55 }}>
                 <td>
-                  {q.source === 'ai' && <span className="badge">{q.verified ? 'AI ✓已驗證' : 'AI ⚠️未驗證'}</span>}
+                  {q.source === 'ai' && <span className="badge">{q.verified ? t('badgeVerified') : t('badgeUnverified')}</span>}
                   {q.prompt.slice(0, 70)}{q.prompt.length > 70 ? '…' : ''}
                 </td>
                 <td>{q.answer}</td>
                 <td>{q.topic}<br /><span className="muted">{q.theme}</span></td>
                 <td>Lv {q.difficulty}</td>
-                <td>{q.active ? '啟用' : (q.source === 'ai' ? '待審核' : '停用')}</td>
+                <td>{q.active ? t('statusActive') : (q.source === 'ai' ? t('statusPending') : t('statusInactive'))}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>
                   {!q.active && q.source === 'ai' && (
-                    <><button className="btn small" onClick={() => approve(q)}>上架</button>{' '}</>
+                    <><button className="btn small" onClick={() => approve(q)}>{t('publish')}</button>{' '}</>
                   )}
-                  <button className="btn small ghost" onClick={() => setEditing({ ...q, hints: [...q.hints] })}>編輯</button>{' '}
-                  <button className="btn small danger" onClick={() => remove(q.id)}>刪除</button>
+                  <button className="btn small ghost" onClick={() => setEditing({ ...q, hints: [...q.hints] })}>{t('edit')}</button>{' '}
+                  <button className="btn small danger" onClick={() => remove(q.id)}>{t('del')}</button>
                 </td>
               </tr>
             ))}
@@ -410,9 +449,10 @@ function Questions() {
   );
 }
 
-// ---------------- 獎品 ----------------
+// ---------------- Rewards ----------------
 
 function RewardsAdmin() {
+  const { t } = useT();
   const [list, setList] = useState<any[]>([]);
   const [form, setForm] = useState({ name: '', emoji: '🎁', cost: 50 });
 
@@ -430,35 +470,35 @@ function RewardsAdmin() {
     load();
   }
   async function remove(id: number) {
-    if (!confirm('刪除這個獎品？')) return;
+    if (!confirm(t('confirmDeleteReward'))) return;
     await adminFetch(`/rewards/${id}`, 'DELETE');
     load();
   }
 
   return (
     <div className="card">
-      <h2>獎品清單</h2>
+      <h2>{t('rewardsTitle')}</h2>
       <div className="row mt">
         <input className="answer-input" style={{ maxWidth: 90, fontSize: 16 }} value={form.emoji}
           onChange={(e) => setForm({ ...form, emoji: e.target.value })} />
-        <input className="answer-input" style={{ fontSize: 16 }} placeholder="獎品名稱（英文顯示給小孩）" value={form.name}
+        <input className="answer-input" style={{ fontSize: 16 }} placeholder={t('rewardNamePlaceholder')} value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <input className="answer-input" style={{ maxWidth: 110, fontSize: 16 }} type="number" value={form.cost}
           onChange={(e) => setForm({ ...form, cost: parseInt(e.target.value, 10) || 0 })} />
-        <button className="btn small" onClick={add}>新增</button>
+        <button className="btn small" onClick={add}>{t('add')}</button>
       </div>
       <table className="data mt">
-        <thead><tr><th></th><th>名稱</th><th>積分</th><th>狀態</th><th></th></tr></thead>
+        <thead><tr><th></th><th>{t('colName')}</th><th>{t('colCost')}</th><th>{t('colStatus')}</th><th></th></tr></thead>
         <tbody>
           {list.map((r) => (
             <tr key={r.id} style={{ opacity: r.active ? 1 : 0.45 }}>
               <td style={{ fontSize: 22 }}>{r.emoji}</td>
               <td>{r.name}</td>
               <td>⭐ {r.cost}</td>
-              <td>{r.active ? '上架' : '下架'}</td>
+              <td>{r.active ? t('listed') : t('unlisted')}</td>
               <td style={{ whiteSpace: 'nowrap' }}>
-                <button className="btn small ghost" onClick={() => toggle(r)}>{r.active ? '下架' : '上架'}</button>{' '}
-                <button className="btn small danger" onClick={() => remove(r.id)}>刪除</button>
+                <button className="btn small ghost" onClick={() => toggle(r)}>{r.active ? t('unlisted') : t('listed')}</button>{' '}
+                <button className="btn small danger" onClick={() => remove(r.id)}>{t('del')}</button>
               </td>
             </tr>
           ))}
@@ -468,9 +508,10 @@ function RewardsAdmin() {
   );
 }
 
-// ---------------- 兌換審核 ----------------
+// ---------------- Redemptions ----------------
 
 function Redemptions() {
+  const { t } = useT();
   const [list, setList] = useState<any[]>([]);
   const load = () => adminFetch<any[]>('/redemptions').then(setList).catch(() => {});
   useEffect(() => { load(); }, []);
@@ -480,13 +521,15 @@ function Redemptions() {
     load();
   }
 
-  const label: Record<string, string> = { pending: '⏳ 待審核', approved: '✅ 已批准', rejected: '↩️ 已退回' };
+  const label: Record<string, string> = {
+    pending: t('statusPendingR'), approved: t('statusApproved'), rejected: t('statusRejected'),
+  };
 
   return (
     <div className="card">
-      <h2>兌換申請</h2>
+      <h2>{t('redemptionsTitle')}</h2>
       <table className="data mt">
-        <thead><tr><th>時間</th><th>獎品</th><th>積分</th><th>狀態</th><th></th></tr></thead>
+        <thead><tr><th>{t('colTime')}</th><th>{t('colReward')}</th><th>{t('colCost')}</th><th>{t('colStatus')}</th><th></th></tr></thead>
         <tbody>
           {list.map((r) => (
             <tr key={r.id}>
@@ -497,8 +540,8 @@ function Redemptions() {
               <td style={{ whiteSpace: 'nowrap' }}>
                 {r.status === 'pending' && (
                   <>
-                    <button className="btn small" onClick={() => decide(r.id, 'approve')}>批准</button>{' '}
-                    <button className="btn small ghost" onClick={() => decide(r.id, 'reject')}>退回並退還積分</button>
+                    <button className="btn small" onClick={() => decide(r.id, 'approve')}>{t('approve')}</button>{' '}
+                    <button className="btn small ghost" onClick={() => decide(r.id, 'reject')}>{t('rejectRefund')}</button>
                   </>
                 )}
               </td>
@@ -506,14 +549,15 @@ function Redemptions() {
           ))}
         </tbody>
       </table>
-      {list.length === 0 && <p className="muted mt">還沒有兌換申請。</p>}
+      {list.length === 0 && <p className="muted mt">{t('noRedemptions')}</p>}
     </div>
   );
 }
 
-// ---------------- AI 對話紀錄 ----------------
+// ---------------- AI Chat Logs ----------------
 
 function ChatLogs() {
+  const { t } = useT();
   const [list, setList] = useState<any[]>([]);
   useEffect(() => { adminFetch<any[]>('/chats').then(setList).catch(() => {}); }, []);
 
@@ -527,10 +571,8 @@ function ChatLogs() {
 
   return (
     <div>
-      <p className="muted" style={{ marginBottom: 12 }}>
-        Elena 和 AI 夥伴的每一句對話都會記錄在這裡（最新在前）。AI 被設定為只談數學、不給答案、離題會轉回來。
-      </p>
-      {groups.length === 0 && <div className="card center muted">還沒有對話紀錄。</div>}
+      <p className="muted" style={{ marginBottom: 12 }}>{t('chatsDesc')}</p>
+      {groups.length === 0 && <div className="card center muted">{t('noChats')}</div>}
       {groups.map((g, gi) => (
         <div className="card" key={gi}>
           <p className="muted" style={{ marginBottom: 10 }}>
@@ -539,9 +581,9 @@ function ChatLogs() {
           </p>
           {[...g.rows].reverse().map((r) => (
             <div key={r.id} style={{ marginBottom: 10 }}>
-              <div><b>Elena：</b>{r.user_msg}</div>
+              <div><b>{t('studentLabel')}：</b>{r.user_msg}</div>
               <div style={{ color: 'var(--teal)' }}>
-                <b>AI{r.source === 'fallback' ? '（離線提示）' : `（${r.source}）`}：</b>{r.reply}
+                <b>AI{r.source === 'fallback' ? t('offlineHint') : `（${r.source}）`}：</b>{r.reply}
               </div>
             </div>
           ))}
@@ -551,9 +593,10 @@ function ChatLogs() {
   );
 }
 
-// ---------------- 設定 ----------------
+// ---------------- Settings ----------------
 
 function Settings() {
+  const { t, lang } = useT();
   const [s, setS] = useState<Record<string, string> | null>(null);
   const [notes, setNotes] = useState<any[]>([]);
   const [newNote, setNewNote] = useState('');
@@ -573,7 +616,7 @@ function Settings() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
-      alert(`儲存失敗：${e instanceof Error ? e.message : e}`);
+      alert(`${t('saveFailed')}: ${e instanceof Error ? e.message : e}`);
     }
   }
 
@@ -584,10 +627,10 @@ function Settings() {
     loadNotes();
   }
 
-  if (!s) return <div className="card center">載入中...</div>;
+  if (!s) return <div className="card center">{t('loading')}</div>;
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setS({ ...s, [k]: e.target.value });
   const keyStatus: Record<string, boolean> = (s as any)._keyStatus ?? {};
-  const curriculum: { key: string; label: string; topics: { key: string; label: string; kinds: string[] }[] }[] = (s as any)._curriculum ?? [];
+  const curriculum: { key: string; label: any; topics: { key: string; label: any; kinds: string[] }[] }[] = (s as any)._curriculum ?? [];
 
   let enabledTopics: string[] = [];
   try { const arr = JSON.parse(s.enabled_topics || '[]'); if (Array.isArray(arr)) enabledTopics = arr; } catch { /* keep [] */ }
@@ -595,108 +638,107 @@ function Settings() {
   const toggleTopic = (key: string) =>
     setTopics(enabledTopics.includes(key) ? enabledTopics.filter((k) => k !== key) : [...enabledTopics, key]);
   const kindLabel = (kinds: string[]) =>
-    kinds.length === 2 ? '計算＋應用題' : kinds[0] === 'word' ? '應用題' : '計算';
+    kinds.length === 2 ? t('kindBoth') : kinds[0] === 'word' ? t('kindWordOnly') : t('kindArithOnly');
   const PROVIDER_INFO: [string, string, string][] = [
     ['claude', 'Claude (Anthropic)', 'ai_model_claude'],
     ['gemini', 'Gemini (Google)', 'ai_model_gemini'],
     ['openai', 'ChatGPT (OpenAI)', 'ai_model_openai'],
-    ['ollama', 'Ollama（本地，在家用）', 'ai_model_ollama'],
+    ['ollama', t('ollamaLabel'), 'ai_model_ollama'],
   ];
 
   return (
     <>
       <div className="card">
-        <h2>📚 課程範圍</h2>
-        <p className="muted">勾選 = Elena 目前會遇到的主題，全站生效（練習、應用題、挑戰關卡、AI 出題）。開學後可以把 Saxon 2 複習取消勾選，只留 Saxon 3 進度內的主題。記得按下方「儲存設定」。</p>
+        <h2>{t('curriculumTitle')}</h2>
+        <p className="muted">{t('curriculumDesc')}</p>
         {curriculum.map((g) => {
-          const groupKeys = g.topics.map((t) => t.key);
+          const groupKeys = g.topics.map((tp) => tp.key);
           const allOn = groupKeys.every((k) => enabledTopics.includes(k));
           return (
             <div key={g.key} className="mt">
               <div className="row">
-                <b>{g.label}</b>
+                <b>{pickLabel(g.label, lang)}</b>
                 <button className="btn small ghost" onClick={() =>
                   setTopics(allOn
                     ? enabledTopics.filter((k) => !groupKeys.includes(k))
                     : [...new Set([...enabledTopics, ...groupKeys])])
                 }>
-                  {allOn ? '全部取消' : '全部勾選'}
+                  {allOn ? t('uncheckAll') : t('checkAll')}
                 </button>
               </div>
               <div className="row mt" style={{ gap: '6px 18px' }}>
-                {g.topics.map((t) => (
-                  <label key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 15, cursor: 'pointer' }}>
+                {g.topics.map((tp) => (
+                  <label key={tp.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 15, cursor: 'pointer' }}>
                     <input
                       type="checkbox"
-                      checked={enabledTopics.includes(t.key)}
-                      onChange={() => toggleTopic(t.key)}
+                      checked={enabledTopics.includes(tp.key)}
+                      onChange={() => toggleTopic(tp.key)}
                       style={{ width: 18, height: 18 }}
                     />
-                    {t.label}
-                    <span className="muted" style={{ fontSize: 12 }}>（{kindLabel(t.kinds)}）</span>
+                    {pickLabel(tp.label, lang)}
+                    <span className="muted" style={{ fontSize: 12 }}>（{kindLabel(tp.kinds)}）</span>
                   </label>
                 ))}
               </div>
             </div>
           );
         })}
-        {enabledTopics.length === 0 && <div className="feedback bad mt">至少要勾選一個主題才能儲存。</div>}
+        {enabledTopics.length === 0 && <div className="feedback bad mt">{t('atLeastOne')}</div>}
       </div>
 
       <div className="card">
-        <h2>AI 夥伴引擎</h2>
+        <h2>{t('aiEngineTitle')}</h2>
         <div className="form-grid mt">
-          <label>使用的 AI
+          <label>{t('aiInUse')}
             <select value={s.ai_provider} onChange={set('ai_provider')}>
               {PROVIDER_INFO.map(([p, label]) => (
                 <option key={p} value={p}>
-                  {label}{p === 'ollama' ? '' : keyStatus[p] ? ' ✓ 已設定金鑰' : ' ✗ 未設定金鑰'}
+                  {label}{p === 'ollama' ? '' : keyStatus[p] ? t('keySet') : t('keyUnset')}
                 </option>
               ))}
             </select>
           </label>
           {PROVIDER_INFO.map(([p, label, modelKey]) => (
-            <label key={p}>{label} 模型
+            <label key={p}>{label} {t('modelSuffix')}
               <input value={s[modelKey] ?? ''} onChange={set(modelKey)} />
             </label>
           ))}
         </div>
         <p className="muted mt">
-          API 金鑰放在伺服器的 <code>server/.env</code>（ANTHROPIC_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY / OLLAMA_BASE_URL），
-          不會存進資料庫。目前狀態：{PROVIDER_INFO.map(([p]) => `${p} ${p === 'ollama' ? '（免金鑰）' : keyStatus[p] ? '✓' : '✗'}`).join('｜')}。
-          切換後立即生效，不用重啟。
+          {t('aiKeyNote')}
+          {PROVIDER_INFO.map(([p]) => `${p}${p === 'ollama' ? t('noKeyNeeded') : keyStatus[p] ? ' ✓' : ' ✗'}`).join('｜')}
         </p>
       </div>
 
       <div className="card">
-        <h2>基本設定</h2>
+        <h2>{t('basicTitle')}</h2>
         <div className="form-grid mt">
-          <label>小孩名字<input value={s.student_name} onChange={set('student_name')} /></label>
-          <label>AI 夥伴名字<input value={s.buddy_name} onChange={set('buddy_name')} /></label>
-          <label>基準難度 (1-5)
+          <label>{t('studentName')}<input value={s.student_name} onChange={set('student_name')} /></label>
+          <label>{t('buddyName')}<input value={s.buddy_name} onChange={set('buddy_name')} /></label>
+          <label>{t('baseDifficulty')}
             <select value={s.target_difficulty} onChange={set('target_difficulty')}>
               {['1', '2', '3', '4', '5'].map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
           </label>
-          <label>AI 回覆語言<input value={s.tutor_language} onChange={set('tutor_language')} /></label>
-          <label>興趣（給 AI 出題/鼓勵用）<input value={s.interests} onChange={set('interests')} /></label>
-          <label>後台 PIN<input value={s.admin_pin} onChange={set('admin_pin')} /></label>
+          <label>{t('tutorLang')}<input value={s.tutor_language} onChange={set('tutor_language')} /></label>
+          <label>{t('interestsLabel')}<input value={s.interests} onChange={set('interests')} /></label>
+          <label>{t('adminPin')}<input value={s.admin_pin} onChange={set('admin_pin')} /></label>
         </div>
         <div className="row mt">
-          <button className="btn" onClick={save}>儲存設定</button>
-          {saved && <span style={{ color: 'var(--green)', fontWeight: 700 }}>已儲存 ✓</span>}
+          <button className="btn" onClick={save}>{t('saveSettings')}</button>
+          {saved && <span style={{ color: 'var(--green)', fontWeight: 700 }}>{t('savedOk')}</span>}
         </div>
-        <p className="muted mt">系統會依近期正確率自動微調難度（正確率 &gt;85% 升一級，&lt;50% 降一級）。</p>
+        <p className="muted mt">{t('autoDiffNote')}</p>
       </div>
 
       <div className="card">
-        <h2>給 AI 家教的備註</h2>
-        <p className="muted">這些備註會提供給 AI 家教參考，例如：「最近在學分數除法，多鼓勵她畫圖」。</p>
+        <h2>{t('notesTitle')}</h2>
+        <p className="muted">{t('notesDesc')}</p>
         <div className="row mt">
           <input className="answer-input" style={{ fontSize: 16 }} value={newNote}
             onChange={(e) => setNewNote(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addNote()} />
-          <button className="btn small" onClick={addNote}>新增</button>
+          <button className="btn small" onClick={addNote}>{t('add')}</button>
         </div>
         <table className="data mt">
           <tbody>
@@ -704,7 +746,7 @@ function Settings() {
               <tr key={n.id}>
                 <td>{n.note}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>
-                  <button className="btn small ghost" onClick={async () => { await adminFetch(`/notes/${n.id}`, 'DELETE'); loadNotes(); }}>刪除</button>
+                  <button className="btn small ghost" onClick={async () => { await adminFetch(`/notes/${n.id}`, 'DELETE'); loadNotes(); }}>{t('del')}</button>
                 </td>
               </tr>
             ))}
