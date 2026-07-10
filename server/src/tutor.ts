@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { Agent, fetch as undiciFetch } from 'undici';
 import { db, getSetting } from './db.js';
 
 // AI study buddy. Socratic style: guides toward the answer, never gives it away.
@@ -202,15 +203,29 @@ async function callOpenAI(system: string, context: string, messages: ChatMessage
   return data.choices?.[0]?.message?.content ?? '';
 }
 
+// Local models can take many minutes when a big model has to (re)load into
+// VRAM; undici's default 300s headers timeout kills those requests
+// (UND_ERR_HEADERS_TIMEOUT). Give Ollama calls a 15-minute budget. The Agent
+// must be paired with the SAME undici copy's fetch — Node's global fetch
+// rejects a foreign Agent with UND_ERR_INVALID_ARG.
+const ollamaDispatcher = new Agent({
+  headersTimeout: 15 * 60 * 1000,
+  bodyTimeout: 15 * 60 * 1000,
+});
+
 async function callOllama(system: string, context: string, messages: ChatMessage[], maxTokens = CHAT_TOKENS): Promise<string> {
   const base = (process.env.OLLAMA_BASE_URL || 'http://localhost:11434').replace(/\/$/, '');
-  const res = await fetch(`${base}/api/chat`, {
+  const res = await undiciFetch(`${base}/api/chat`, {
     method: 'POST',
+    dispatcher: ollamaDispatcher,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: modelFor('ollama'),
       stream: false,
-      options: { num_predict: maxTokens },
+      // num_ctx: some models default to huge context windows (gemma4 = 256K),
+      // whose KV cache won't fit in VRAM and spills to CPU — brutally slow.
+      // Our prompts are a few K tokens, so a small window keeps it all on GPU.
+      options: { num_predict: maxTokens, num_ctx: 8192 },
       messages: [{ role: 'system', content: context ? `${system}\n\n${context}` : system }, ...messages],
     }),
   });
