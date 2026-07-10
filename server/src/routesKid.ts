@@ -4,6 +4,7 @@ import { generateArithmetic, ARITHMETIC_TOPICS, type ArithmeticTopic } from './a
 import { checkAnswer } from './answers.js';
 import { registerQuestion, getPending, removePending } from './pending.js';
 import { aiAvailable } from './tutor.js';
+import { enabledTopicSet, enabledTopicsFor } from './curriculum.js';
 
 export const kidRouter = Router();
 
@@ -29,17 +30,20 @@ function targetDifficulty(selector: { topic?: string; kind?: string }): number {
   return Math.min(5, Math.max(1, base + adj));
 }
 
-function pickWordProblem(difficulty: number): WordRow | undefined {
+function pickWordProblem(difficulty: number, topics: string[]): WordRow | undefined {
+  if (!topics.length) return undefined;
+  const placeholders = topics.map(() => '?').join(',');
   return db.prepare(
     `SELECT q.*, (
        SELECT COUNT(*) FROM attempts a WHERE a.question_id = q.id AND a.correct = 1
      ) AS solved
      FROM questions q
      WHERE q.active = 1 AND q.kind = 'word'
+       AND q.topic IN (${placeholders})
        AND q.difficulty BETWEEN ? AND ?
      ORDER BY solved ASC, RANDOM()
      LIMIT 1`
-  ).get(difficulty - 1, difficulty + 1) as WordRow | undefined;
+  ).get(...topics, difficulty - 1, difficulty + 1) as WordRow | undefined;
 }
 
 // ---- state ---------------------------------------------------------------
@@ -50,6 +54,7 @@ kidRouter.get('/state', (_req, res) => {
     buddyName: getSetting('buddy_name'),
     points: pointsBalance(),
     aiAvailable: aiAvailable(),
+    enabledTopics: [...enabledTopicSet()],
   });
 });
 
@@ -62,8 +67,8 @@ kidRouter.get('/question', (req, res) => {
 
   if (mode === 'word') {
     const diff = diffParam === 'auto' ? targetDifficulty({ kind: 'word' }) : parseInt(diffParam, 10);
-    const row = pickWordProblem(diff);
-    if (!row) return res.status(404).json({ error: 'No word problems available at this difficulty.' });
+    const row = pickWordProblem(diff, enabledTopicsFor('word'));
+    if (!row) return res.status(404).json({ error: 'No word problems in the current study plan — ask your parent to check the settings!' });
     const entry = registerQuestion({
       kind: 'word', questionId: row.id, topic: row.topic, difficulty: row.difficulty,
       prompt: row.prompt, answer: row.answer, answerType: row.answer_type,
@@ -75,13 +80,19 @@ kidRouter.get('/question', (req, res) => {
     });
   }
 
-  const topic = (ARITHMETIC_TOPICS as readonly string[]).includes(topicParam)
+  const enabledArith = enabledTopicsFor('arithmetic');
+  if (!enabledArith.length) {
+    return res.status(404).json({ error: 'Math drills are paused in the current study plan — ask your parent to check the settings!' });
+  }
+  let topic = (ARITHMETIC_TOPICS as readonly string[]).includes(topicParam)
     ? (topicParam as ArithmeticTopic)
-    : 'mixed';
+    : 'mixed' as const;
+  // A topic outside the current study plan falls back to the enabled mix.
+  if (topic !== 'mixed' && !enabledArith.includes(topic)) topic = 'mixed';
   const diff = diffParam === 'auto'
     ? (topic === 'mixed' ? targetDifficulty({ kind: 'arithmetic' }) : targetDifficulty({ topic }))
     : parseInt(diffParam, 10);
-  const q = generateArithmetic(topic, diff);
+  const q = generateArithmetic(topic, diff, enabledArith);
   const entry = registerQuestion({
     kind: 'arithmetic', questionId: null, topic: q.topic, difficulty: q.difficulty,
     prompt: q.prompt, answer: q.answer, answerType: q.answerType,
@@ -176,8 +187,15 @@ interface RunQuestion {
   answer: string; answerType: string; explanation: string;
 }
 
+// A level is in scope when its specific topic is enabled; 'mixed' and word
+// levels stay listed because they draw from the (filtered) enabled pools.
+function levelInScope(l: any): boolean {
+  if (l.topic === 'mixed' || l.kind === 'word') return true;
+  return enabledTopicSet().has(l.topic);
+}
+
 kidRouter.get('/challenges', (_req, res) => {
-  const levels = db.prepare('SELECT * FROM challenge_levels ORDER BY ord').all() as any[];
+  const levels = (db.prepare('SELECT * FROM challenge_levels ORDER BY ord').all() as any[]).filter(levelInScope);
   const best = db.prepare(
     `SELECT level_id, MAX(stars) AS stars FROM challenge_runs WHERE finished = 1 GROUP BY level_id`
   ).all() as { level_id: number; stars: number }[];
@@ -193,15 +211,21 @@ kidRouter.get('/challenges', (_req, res) => {
 kidRouter.post('/challenges/:id/start', (req, res) => {
   const level = db.prepare('SELECT * FROM challenge_levels WHERE id = ?').get(req.params.id) as any;
   if (!level) return res.status(404).json({ error: 'Level not found' });
+  if (!levelInScope(level)) {
+    return res.status(400).json({ error: 'This level is not in the current study plan — ask your parent!' });
+  }
 
+  const enabledWord = enabledTopicsFor('word');
+  const enabledArith = enabledTopicsFor('arithmetic');
   const questions: RunQuestion[] = [];
   const usedWordIds = new Set<number>();
   for (let i = 0; i < level.question_count; i++) {
     const wantWord = level.kind === 'word' || (level.kind === 'mixed' && i % 2 === 1);
-    if (wantWord) {
+    if (wantWord && enabledWord.length) {
+      const placeholders = enabledWord.map(() => '?').join(',');
       const rows = db.prepare(
-        `SELECT * FROM questions WHERE active = 1 AND kind = 'word' AND difficulty BETWEEN ? AND ? ORDER BY RANDOM() LIMIT 10`
-      ).all(level.difficulty - 1, level.difficulty + 1) as WordRow[];
+        `SELECT * FROM questions WHERE active = 1 AND kind = 'word' AND topic IN (${placeholders}) AND difficulty BETWEEN ? AND ? ORDER BY RANDOM() LIMIT 10`
+      ).all(...enabledWord, level.difficulty - 1, level.difficulty + 1) as WordRow[];
       const row = rows.find((r) => !usedWordIds.has(r.id)) ?? rows[0];
       if (row) {
         usedWordIds.add(row.id);
@@ -212,7 +236,7 @@ kidRouter.post('/challenges/:id/start', (req, res) => {
         continue;
       }
     }
-    const g = generateArithmetic(level.topic === 'mixed' ? 'mixed' : level.topic, level.difficulty);
+    const g = generateArithmetic(level.topic === 'mixed' ? 'mixed' : level.topic, level.difficulty, enabledArith);
     questions.push({
       kind: 'arithmetic', topic: g.topic, difficulty: g.difficulty, prompt: g.prompt,
       answer: g.answer, answerType: g.answerType, explanation: g.explanation,

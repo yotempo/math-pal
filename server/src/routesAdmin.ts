@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { db, getSetting, setSetting, pointsBalance, addPoints } from './db.js';
 import { PROVIDERS, providerKeyConfigured } from './tutor.js';
 import { startGeneration, getLatestJob } from './generator.js';
+import { CURRICULUM, ALL_TOPIC_KEYS } from './curriculum.js';
 
 export const adminRouter = Router();
 
@@ -68,19 +69,34 @@ adminRouter.post('/points', (req, res) => {
 const EDITABLE_SETTINGS = [
   'admin_pin', 'student_name', 'buddy_name', 'target_difficulty', 'tutor_language', 'interests',
   'ai_provider', 'ai_model_claude', 'ai_model_gemini', 'ai_model_openai', 'ai_model_ollama',
+  'enabled_topics',
 ];
 
 adminRouter.get('/settings', (_req, res) => {
   const out: Record<string, unknown> = {};
   for (const k of EDITABLE_SETTINGS) out[k] = getSetting(k);
-  // Which providers have credentials configured in server/.env (read-only info)
+  // Read-only metadata for the UI
   out._keyStatus = Object.fromEntries(PROVIDERS.map((p) => [p, providerKeyConfigured(p)]));
+  out._curriculum = CURRICULUM;
   res.json(out);
 });
 
 adminRouter.put('/settings', (req, res) => {
   const body = req.body as Record<string, string>;
+
+  // Curriculum scope needs validation: must be a JSON array with ≥1 known topic.
+  if (body.enabled_topics !== undefined) {
+    let topics: string[] = [];
+    try {
+      const arr = JSON.parse(String(body.enabled_topics));
+      if (Array.isArray(arr)) topics = arr.filter((k) => typeof k === 'string' && ALL_TOPIC_KEYS.includes(k));
+    } catch { /* invalid JSON → rejected below */ }
+    if (!topics.length) return res.status(400).json({ error: '課程範圍至少要勾選一個主題' });
+    setSetting('enabled_topics', JSON.stringify(topics));
+  }
+
   for (const k of EDITABLE_SETTINGS) {
+    if (k === 'enabled_topics') continue;
     if (typeof body[k] === 'string' && body[k].trim()) setSetting(k, body[k].trim());
   }
   res.json({ ok: true });

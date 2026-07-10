@@ -54,9 +54,13 @@ function round2(x: number): number {
   return Math.round(x * 100) / 100;
 }
 
-export function generateArithmetic(topic: ArithmeticTopic | 'mixed', difficulty: number): GeneratedQuestion {
+export function generateArithmetic(topic: ArithmeticTopic | 'mixed', difficulty: number, allowedTopics?: readonly string[]): GeneratedQuestion {
   const d = Math.min(5, Math.max(1, Math.round(difficulty)));
-  const t: ArithmeticTopic = topic === 'mixed' ? pick(ARITHMETIC_TOPICS) : topic;
+  // 'mixed' draws only from the allowed (curriculum-enabled) topics when given.
+  const pool = allowedTopics?.length
+    ? ARITHMETIC_TOPICS.filter((t) => allowedTopics.includes(t))
+    : ARITHMETIC_TOPICS;
+  const t: ArithmeticTopic = topic === 'mixed' ? pick(pool.length ? pool : ARITHMETIC_TOPICS) : topic;
   switch (t) {
     case 'add_sub': return genAddSub(d);
     case 'mult': return genMult(d);

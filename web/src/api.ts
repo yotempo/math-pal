@@ -64,4 +64,5 @@ export interface AppState {
   buddyName: string;
   points: number;
   aiAvailable: boolean;
+  enabledTopics: string[];
 }

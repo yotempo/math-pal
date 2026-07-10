@@ -567,10 +567,14 @@ function Settings() {
 
   async function save() {
     if (!s) return;
-    await adminFetch('/settings', 'PUT', s);
-    if (s.admin_pin) setPin(s.admin_pin);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    try {
+      await adminFetch('/settings', 'PUT', s);
+      if (s.admin_pin) setPin(s.admin_pin);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      alert(`儲存失敗：${e instanceof Error ? e.message : e}`);
+    }
   }
 
   async function addNote() {
@@ -583,6 +587,15 @@ function Settings() {
   if (!s) return <div className="card center">載入中...</div>;
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setS({ ...s, [k]: e.target.value });
   const keyStatus: Record<string, boolean> = (s as any)._keyStatus ?? {};
+  const curriculum: { key: string; label: string; topics: { key: string; label: string; kinds: string[] }[] }[] = (s as any)._curriculum ?? [];
+
+  let enabledTopics: string[] = [];
+  try { const arr = JSON.parse(s.enabled_topics || '[]'); if (Array.isArray(arr)) enabledTopics = arr; } catch { /* keep [] */ }
+  const setTopics = (next: string[]) => setS({ ...s, enabled_topics: JSON.stringify(next) });
+  const toggleTopic = (key: string) =>
+    setTopics(enabledTopics.includes(key) ? enabledTopics.filter((k) => k !== key) : [...enabledTopics, key]);
+  const kindLabel = (kinds: string[]) =>
+    kinds.length === 2 ? '計算＋應用題' : kinds[0] === 'word' ? '應用題' : '計算';
   const PROVIDER_INFO: [string, string, string][] = [
     ['claude', 'Claude (Anthropic)', 'ai_model_claude'],
     ['gemini', 'Gemini (Google)', 'ai_model_gemini'],
@@ -592,6 +605,44 @@ function Settings() {
 
   return (
     <>
+      <div className="card">
+        <h2>📚 課程範圍</h2>
+        <p className="muted">勾選 = Elena 目前會遇到的主題，全站生效（練習、應用題、挑戰關卡、AI 出題）。開學後可以把 Saxon 2 複習取消勾選，只留 Saxon 3 進度內的主題。記得按下方「儲存設定」。</p>
+        {curriculum.map((g) => {
+          const groupKeys = g.topics.map((t) => t.key);
+          const allOn = groupKeys.every((k) => enabledTopics.includes(k));
+          return (
+            <div key={g.key} className="mt">
+              <div className="row">
+                <b>{g.label}</b>
+                <button className="btn small ghost" onClick={() =>
+                  setTopics(allOn
+                    ? enabledTopics.filter((k) => !groupKeys.includes(k))
+                    : [...new Set([...enabledTopics, ...groupKeys])])
+                }>
+                  {allOn ? '全部取消' : '全部勾選'}
+                </button>
+              </div>
+              <div className="row mt" style={{ gap: '6px 18px' }}>
+                {g.topics.map((t) => (
+                  <label key={t.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 15, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={enabledTopics.includes(t.key)}
+                      onChange={() => toggleTopic(t.key)}
+                      style={{ width: 18, height: 18 }}
+                    />
+                    {t.label}
+                    <span className="muted" style={{ fontSize: 12 }}>（{kindLabel(t.kinds)}）</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+        {enabledTopics.length === 0 && <div className="feedback bad mt">至少要勾選一個主題才能儲存。</div>}
+      </div>
+
       <div className="card">
         <h2>AI 夥伴引擎</h2>
         <div className="form-grid mt">

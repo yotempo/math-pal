@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { wordProblems, rewards, challengeLevels } from './seedData.js';
+import { ALL_TOPIC_KEYS } from './curriculum.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.resolve(here, '../data');
@@ -123,6 +124,8 @@ const defaultSettings: Record<string, string> = {
   ai_model_gemini: 'gemini-2.5-flash',
   ai_model_openai: 'gpt-5-mini',
   ai_model_ollama: 'gpt-oss:20b',
+  // Curriculum scope: JSON array of topic keys the student currently sees.
+  enabled_topics: JSON.stringify(ALL_TOPIC_KEYS),
 };
 
 const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');

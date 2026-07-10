@@ -1,6 +1,7 @@
 import { db, getSetting } from './db.js';
 import { aiComplete, currentProvider, describeError } from './tutor.js';
 import { checkAnswer, parseNumeric } from './answers.js';
+import { enabledTopicsFor } from './curriculum.js';
 
 // Phase 2: AI-generated word problems.
 //
@@ -49,10 +50,14 @@ function weakWordTopics(): string[] {
 }
 
 function pickTopic(requested: string): string {
+  // An explicit topic from the admin is honored as-is; 'auto' respects the
+  // curriculum scope (weak topics first, within the enabled set).
   if ((WORD_TOPICS as readonly string[]).includes(requested)) return requested;
-  const weak = weakWordTopics();
+  const pool = enabledTopicsFor('word');
+  const candidates = pool.length ? pool : [...WORD_TOPICS];
+  const weak = weakWordTopics().filter((t) => candidates.includes(t));
   if (weak.length) return weak[Math.floor(Math.random() * weak.length)];
-  return WORD_TOPICS[Math.floor(Math.random() * WORD_TOPICS.length)];
+  return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
 function pickTheme(requested: string): string {

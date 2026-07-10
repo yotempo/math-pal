@@ -36,6 +36,14 @@ export default function Practice({ onPointsChange, state }: { onPointsChange: ()
   const [chatOpen, setChatOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Only offer topics inside the current study plan (parent-controlled).
+  const enabledTopics = state?.enabledTopics;
+  const visibleTopics = ARITH_TOPICS.filter(([key]) => key === 'mixed' || !enabledTopics || enabledTopics.includes(key));
+
+  useEffect(() => {
+    if (topic !== 'mixed' && enabledTopics && !enabledTopics.includes(topic)) setTopic('mixed');
+  }, [topic, enabledTopics]);
+
   const load = useCallback(() => {
     setLoading(true);
     setResult(null); setHint(null); setRevealed(null); setAnswer(''); setChat([]); setChatOpen(false); setError('');
@@ -87,7 +95,7 @@ export default function Practice({ onPointsChange, state }: { onPointsChange: ()
       {!isWord && (
         <div className="card">
           <div className="pill-options">
-            {ARITH_TOPICS.map(([key, label]) => (
+            {visibleTopics.map(([key, label]) => (
               <button key={key} className={topic === key ? 'selected' : ''} onClick={() => setTopic(key)}>{label}</button>
             ))}
           </div>
