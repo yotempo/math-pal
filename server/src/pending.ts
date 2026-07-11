@@ -17,6 +17,10 @@ export interface PendingQuestion {
   attempts: number;
   revealed: boolean;
   createdAt: number;
+  // Post-solve state: kept so the AI can review her written work afterwards.
+  solvedCorrect?: boolean;
+  lastAnswer?: string;
+  reviewAwarded?: boolean;
 }
 
 const store = new Map<string, PendingQuestion>();

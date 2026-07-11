@@ -160,6 +160,15 @@ table.data th { color: var(--muted); font-size: 12px; text-transform: uppercase;
 }
 .pill-options button.selected { border-color: var(--primary); background: #fff7ed; color: var(--primary-dark); }
 
+/* show-your-work review */
+.work-input {
+  width: 100%; min-height: 80px; resize: vertical;
+  font-family: inherit; font-size: 16px; line-height: 1.5;
+  padding: 10px 14px; border-radius: 14px; border: 2px solid #e7e0d2;
+  outline: none; background: #fffdf8;
+}
+.work-input:focus { border-color: var(--teal); }
+
 /* daily quests */
 .quest-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
 .quest-emoji { font-size: 26px; }

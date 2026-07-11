@@ -120,8 +120,10 @@ kidRouter.post('/answer', (req, res) => {
   }
   const q = getPending(token);
   if (!q) return res.status(410).json({ error: 'This question expired — grab a new one!' });
+  if (q.solvedCorrect) return res.status(400).json({ error: 'Already solved — grab a new question!' });
 
   q.attempts += 1;
+  q.lastAnswer = answer.trim();
   const correct = checkAnswer(q.answer, answer, q.answerType);
 
   db.prepare(
@@ -132,7 +134,9 @@ kidRouter.post('/answer', (req, res) => {
   if (correct) {
     const pts = pointsFor(q.kind, q.difficulty, q.attempts, q.revealed);
     addPoints(pts, `Solved ${q.kind} (${q.topic}, level ${q.difficulty})`);
-    removePending(token);
+    // Keep the entry (guarded above against re-answering) so she can still
+    // ask the AI to review her written work for this problem.
+    q.solvedCorrect = true;
     // Daily quests / streak may have just completed with this answer.
     const questAwards = evaluateQuests().newAwards;
     return res.json({

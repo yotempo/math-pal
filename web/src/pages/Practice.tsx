@@ -161,6 +161,10 @@ export default function Practice({ onPointsChange, state }: { onPointsChange: ()
             </div>
           )}
 
+          {(solved || !!revealed) && question.kind === 'word' && (
+            <WorkReview key={question.token} token={question.token} buddy={buddy} onPointsChange={onPointsChange} />
+          )}
+
           <div className="row mt">
             {(solved || revealed) ? (
               <button className="btn" onClick={load}>Next question →</button>
@@ -185,6 +189,57 @@ export default function Practice({ onPointsChange, state }: { onPointsChange: ()
       {chatOpen && question && !solved && !revealed && (
         <TutorChat token={question.token} buddy={buddy} chat={chat} setChat={setChat} />
       )}
+    </div>
+  );
+}
+
+// After finishing a word problem, she can write out HOW she solved it and get
+// coaching on the reasoning (the answer itself was already graded by the app).
+function WorkReview({ token, buddy, onPointsChange }: { token: string; buddy: string; onPointsChange: () => void }) {
+  const [work, setWork] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [resp, setResp] = useState<{ feedback: string; points: number } | null>(null);
+  const [error, setError] = useState('');
+
+  async function submit() {
+    setBusy(true); setError('');
+    try {
+      const r = await apiPost<{ feedback: string; points: number }>('/ai/review', { token, work });
+      setResp(r);
+      if (r.points > 0) onPointsChange();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not get feedback — try again!');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (resp) {
+    return (
+      <div className="feedback hint" style={{ marginTop: 14 }}>
+        <b>📝 {buddy}'s feedback:</b> {resp.feedback}
+        {resp.points > 0 && (
+          <div style={{ marginTop: 6, fontWeight: 800 }}>+{resp.points} points for showing your work! ⭐</div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt">
+      <p style={{ fontWeight: 700, marginBottom: 6 }}>📝 Show your thinking — how did you solve it? (optional, +2⭐)</p>
+      <textarea
+        className="work-input"
+        placeholder="e.g. First I found the cost of the keychains, then I added the poster..."
+        value={work}
+        onChange={(e) => setWork(e.target.value)}
+      />
+      <div className="row" style={{ marginTop: 8 }}>
+        <button className="btn small secondary" disabled={busy || work.trim().length < 10} onClick={submit}>
+          {busy ? `${buddy} is reading…` : `Get ${buddy}'s feedback`}
+        </button>
+        {error && <span style={{ color: 'var(--red)', fontWeight: 600 }}>{error}</span>}
+      </div>
     </div>
   );
 }
