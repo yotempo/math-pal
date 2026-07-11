@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db, addPoints, pointsBalance } from './db.js';
+import { db, awardPoints, pointsBalance } from './db.js';
 import { getPending } from './pending.js';
 import { tutorChat, reviewWork } from './tutor.js';
 
@@ -86,8 +86,7 @@ aiRouter.post('/review', async (req, res) => {
   let points = 0;
   if (!q.reviewAwarded && text.length >= 20) {
     q.reviewAwarded = true;
-    points = 2;
-    addPoints(points, 'Explained the thinking on a problem');
+    points = awardPoints(2, 'Explained the thinking on a problem');
   }
 
   db.prepare('INSERT INTO ai_chats (token, question, user_msg, reply, source) VALUES (?, ?, ?, ?, ?)')

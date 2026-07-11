@@ -147,6 +147,14 @@ const zh = {
   aiUsageUnlimited: '不限',
   aiUsageNote: '費用為字元數換算的估算值（僅供參考）。達到上限後付費 AI 自動暫停到月底，本地 Ollama 不受影響。',
 
+  coinTitle: '💰 金幣發行曲線',
+  coinDesc: '獎品定價保持不變（例如漫畫永遠 2000 金幣），但隨著她「累積賺到」的金幣越多，每筆獎勵會依倍率縮水——用來控制拿到獎品的節奏（預設：第一本 ~10 天、第二本 ~15 天、之後 ~20 天）。階段以累積賺到的總數判定，花掉不會重置。',
+  coinPhase: '第 {0} 階段',
+  coinUntil: '累積到（金幣）',
+  coinUntilFinal: '之後（無上限）',
+  coinMult: '發行倍率',
+  coinStatus: '目前：第 {0} 階段（倍率 ×{1}）｜累積已賺 {2} 金幣｜近 7 天平均每日入帳 {3} 金幣',
+
   basicTitle: '基本設定',
   studentName: '小孩名字',
   buddyName: 'AI 夥伴名字',
@@ -304,6 +312,14 @@ const en: Record<keyof typeof zh, string> = {
   aiUsageLine: 'Est. spend this month: ${0} / budget {1}',
   aiUsageUnlimited: 'unlimited',
   aiUsageNote: 'Costs are character-count estimates (informational). When the cap is hit, paid AI pauses until next month; local Ollama is never affected.',
+
+  coinTitle: '💰 Coin Issuance Curve',
+  coinDesc: 'Reward prices stay fixed (a manga is always 2000 coins), but each reward shrinks by the phase multiplier as her LIFETIME earnings grow — pacing how fast rewards are reached (default: 1st in ~10 days, 2nd ~15, later ~20). Phases key on lifetime earned; spending never resets them.',
+  coinPhase: 'Phase {0}',
+  coinUntil: 'Until lifetime (coins)',
+  coinUntilFinal: 'Afterwards (no cap)',
+  coinMult: 'Multiplier',
+  coinStatus: 'Now: phase {0} (×{1}) | lifetime earned {2} | avg {3} coins/day (7d)',
 
   basicTitle: 'General',
   studentName: "Kid's name",

@@ -163,6 +163,12 @@ const defaultSettings: Record<string, string> = {
   ai_monthly_budget_usd: '5',
   // Backup provider tried automatically when the active one fails ('none' to disable).
   ai_fallback_provider: 'none',
+  // Coin issuance curve (see earningCurve above).
+  earning_curve: JSON.stringify([
+    { until: 2000, multiplier: 0.6 },
+    { until: 4000, multiplier: 0.4 },
+    { multiplier: 0.3 },
+  ]),
 };
 
 const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
@@ -225,7 +231,72 @@ export function pointsBalance(): number {
   return row.total;
 }
 
+// Raw ledger write — used for redemptions, refunds and parent adjustments.
+// Gameplay rewards must go through awardPoints() below instead.
 export function addPoints(delta: number, reason: string) {
   if (delta === 0) return;
   db.prepare('INSERT INTO points_ledger (delta, reason) VALUES (?, ?)').run(delta, reason);
+}
+
+// ---- coin issuance curve ------------------------------------------------------
+// Reward prices stay fixed (e.g. a manga is always 2000 coins) but the earning
+// rate shrinks as lifetime earnings grow, pacing how fast rewards are reached
+// (default: 1st manga ~10 days, 2nd ~15, 3rd+ ~20 at her current output).
+// The phase is keyed to LIFETIME EARNED coins (spending doesn't reset it).
+
+export interface EarningPhase {
+  until?: number; // lifetime-earned threshold where this phase ends (absent = final phase)
+  multiplier: number;
+}
+
+const DEFAULT_CURVE: EarningPhase[] = [
+  { until: 2000, multiplier: 0.6 },
+  { until: 4000, multiplier: 0.4 },
+  { multiplier: 0.3 },
+];
+
+export function earningCurve(): EarningPhase[] {
+  try {
+    const arr = JSON.parse(getSetting('earning_curve') || '[]');
+    if (Array.isArray(arr) && arr.length) {
+      const phases = arr
+        .filter((p) => p && Number.isFinite(Number(p.multiplier)) && Number(p.multiplier) > 0)
+        .map((p) => ({ until: Number.isFinite(Number(p.until)) ? Number(p.until) : undefined, multiplier: Number(p.multiplier) }));
+      if (phases.length) return phases;
+    }
+  } catch { /* fall back */ }
+  return DEFAULT_CURVE;
+}
+
+export function lifetimeEarned(): number {
+  const row = db.prepare(
+    `SELECT COALESCE(SUM(delta), 0) AS total FROM points_ledger WHERE delta > 0 AND reason NOT LIKE 'Refund:%'`
+  ).get() as { total: number };
+  return row.total;
+}
+
+export function currentEarningPhase(): { index: number; multiplier: number; until?: number; lifetime: number } {
+  const lifetime = lifetimeEarned();
+  const curve = earningCurve();
+  for (let i = 0; i < curve.length; i++) {
+    if (curve[i].until === undefined || lifetime < (curve[i].until as number)) {
+      return { index: i, multiplier: curve[i].multiplier, until: curve[i].until, lifetime };
+    }
+  }
+  const last = curve[curve.length - 1];
+  return { index: curve.length - 1, multiplier: last.multiplier, until: undefined, lifetime };
+}
+
+// Preview what a raw reward is worth right now (also used for quest labels).
+export function scaleAward(raw: number): number {
+  if (raw <= 0) return 0;
+  return Math.max(1, Math.round(raw * currentEarningPhase().multiplier));
+}
+
+// Gameplay reward entry point: applies the issuance curve, returns the
+// actual number of coins granted.
+export function awardPoints(raw: number, reason: string): number {
+  const pts = scaleAward(raw);
+  if (pts > 0) addPoints(pts, reason);
+  return pts;
 }

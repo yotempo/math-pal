@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db, getSetting, pointsBalance, addPoints } from './db.js';
+import { db, getSetting, pointsBalance, addPoints, awardPoints } from './db.js';
 import { generateArithmetic, ARITHMETIC_TOPICS, type ArithmeticTopic } from './arithmetic.js';
 import { checkAnswer } from './answers.js';
 import { registerQuestion, getPending, removePending } from './pending.js';
@@ -139,8 +139,10 @@ kidRouter.post('/answer', (req, res) => {
   ).run(q.questionId, q.kind, q.topic, q.difficulty, q.prompt, answer.trim(), correct ? 1 : 0, q.attempts, elapsedSec, q.answer);
 
   if (correct) {
-    const pts = pointsFor(q.kind, q.difficulty, q.attempts, q.revealed);
-    addPoints(pts, `Solved ${q.kind} (${q.topic}, level ${q.difficulty})`);
+    const pts = awardPoints(
+      pointsFor(q.kind, q.difficulty, q.attempts, q.revealed),
+      `Solved ${q.kind} (${q.topic}, level ${q.difficulty})`,
+    );
     // Keep the entry (guarded above against re-answering) so she can still
     // ask the AI to review her written work for this problem.
     q.solvedCorrect = true;
@@ -295,8 +297,10 @@ kidRouter.post('/challenges/runs/:runId/finish', (req, res) => {
   else if (correct >= Math.ceil(total / 2)) stars = 1;
   const passed = correct >= level.pass_correct;
 
-  const points = correct * level.difficulty + (passed ? level.bonus : 0);
-  addPoints(points, `Challenge "${level.name}": ${correct}/${total}${passed ? ' + bonus' : ''}`);
+  const points = awardPoints(
+    correct * level.difficulty + (passed ? level.bonus : 0),
+    `Challenge "${level.name}": ${correct}/${total}${passed ? ' + bonus' : ''}`,
+  );
 
   db.prepare('UPDATE challenge_runs SET finished = 1, stars = ? WHERE id = ?').run(stars, run.id);
   const questAwards = evaluateQuests().newAwards;

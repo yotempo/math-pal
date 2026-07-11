@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
-import { db, getSetting, setSetting, pointsBalance, addPoints } from './db.js';
+import { db, getSetting, setSetting, pointsBalance, addPoints, currentEarningPhase, earningCurve } from './db.js';
 import { PROVIDERS, providerKeyConfigured, aiUsageSummary } from './tutor.js';
 import { startGeneration, getLatestJob } from './generator.js';
 import { CURRICULUM, ALL_TOPIC_KEYS } from './curriculum.js';
@@ -79,7 +79,7 @@ const EDITABLE_SETTINGS = [
   'admin_pin', 'student_name', 'buddy_name', 'target_difficulty', 'tutor_language', 'interests',
   'ai_provider', 'ai_model_claude', 'ai_model_gemini', 'ai_model_openai', 'ai_model_ollama',
   'ai_fallback_provider', 'ai_monthly_budget_usd',
-  'enabled_topics',
+  'enabled_topics', 'earning_curve',
 ];
 
 adminRouter.get('/settings', (_req, res) => {
@@ -89,6 +89,11 @@ adminRouter.get('/settings', (_req, res) => {
   out._keyStatus = Object.fromEntries(PROVIDERS.map((p) => [p, providerKeyConfigured(p)]));
   out._curriculum = CURRICULUM;
   out._aiUsage = aiUsageSummary();
+  const avg7 = db.prepare(
+    `SELECT COALESCE(SUM(delta), 0) / 7.0 AS avg FROM points_ledger
+     WHERE delta > 0 AND reason NOT LIKE 'Refund:%' AND created_at > datetime('now', '-7 days')`
+  ).get() as { avg: number };
+  out._earning = { ...currentEarningPhase(), curve: earningCurve(), avgDaily7: Math.round(avg7.avg) };
   res.json(out);
 });
 
@@ -106,8 +111,26 @@ adminRouter.put('/settings', (req, res) => {
     setSetting('enabled_topics', JSON.stringify(topics));
   }
 
+  // Earning curve: JSON array of {until?, multiplier} with ≥1 valid phase.
+  if (body.earning_curve !== undefined) {
+    let phases: { until?: number; multiplier: number }[] = [];
+    try {
+      const arr = JSON.parse(String(body.earning_curve));
+      if (Array.isArray(arr)) {
+        phases = arr
+          .filter((p) => p && Number.isFinite(Number(p.multiplier)) && Number(p.multiplier) > 0 && Number(p.multiplier) <= 5)
+          .map((p) => ({
+            until: Number.isFinite(Number(p.until)) && Number(p.until) > 0 ? Number(p.until) : undefined,
+            multiplier: Number(p.multiplier),
+          }));
+      }
+    } catch { /* rejected below */ }
+    if (!phases.length) return res.status(400).json({ error: '金幣發行曲線格式錯誤 / Invalid earning curve' });
+    setSetting('earning_curve', JSON.stringify(phases));
+  }
+
   for (const k of EDITABLE_SETTINGS) {
-    if (k === 'enabled_topics') continue;
+    if (k === 'enabled_topics' || k === 'earning_curve') continue;
     if (typeof body[k] === 'string' && body[k].trim()) setSetting(k, body[k].trim());
   }
   res.json({ ok: true });

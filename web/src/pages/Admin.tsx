@@ -658,6 +658,23 @@ function Settings() {
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setS({ ...s, [k]: e.target.value });
   const keyStatus: Record<string, boolean> = (s as any)._keyStatus ?? {};
   const aiUsage: { monthSpendUsd: number; budgetUsd: number; byProvider: any[] } | undefined = (s as any)._aiUsage;
+  const earning: { index: number; multiplier: number; lifetime: number; avgDaily7: number } | undefined = (s as any)._earning;
+
+  let curve: { until?: number; multiplier: number }[] = [];
+  try {
+    const arr = JSON.parse(s.earning_curve || '[]');
+    if (Array.isArray(arr) && arr.length) curve = arr;
+  } catch { /* keep [] */ }
+  while (curve.length < 3) curve.push({ multiplier: 0.3 });
+  const setCurve = (i: number, field: 'until' | 'multiplier', value: string) => {
+    const next = curve.map((p, j) => {
+      if (j !== i) return p;
+      const n = parseFloat(value);
+      if (field === 'until') return { ...p, until: Number.isFinite(n) && n > 0 ? n : undefined };
+      return { ...p, multiplier: Number.isFinite(n) ? n : p.multiplier };
+    });
+    setS({ ...s, earning_curve: JSON.stringify(next) });
+  };
   const curriculum: { key: string; label: any; topics: { key: string; label: any; kinds: string[] }[] }[] = (s as any)._curriculum ?? [];
 
   let enabledTopics: string[] = [];
@@ -750,6 +767,33 @@ function Settings() {
             💰 {t('aiUsageLine', aiUsage.monthSpendUsd.toFixed(3), aiUsage.budgetUsd > 0 ? `$${aiUsage.budgetUsd}` : t('aiUsageUnlimited'))}
             {aiUsage.byProvider.length > 0 && <>（{aiUsage.byProvider.map((u: any) => `${u.provider} $${u.estUsd.toFixed(3)}`).join('｜')}）</>}
             <br />{t('aiUsageNote')}
+          </p>
+        )}
+      </div>
+
+      <div className="card">
+        <h2>{t('coinTitle')}</h2>
+        <p className="muted">{t('coinDesc')}</p>
+        <div className="form-grid mt">
+          {curve.slice(0, 3).map((p, i) => (
+            <div key={i} className="form-col" style={{ gap: 6 }}>
+              <b>{t('coinPhase', i + 1)}</b>
+              {i < 2 ? (
+                <label>{t('coinUntil')}
+                  <input type="number" min={0} step={100} value={p.until ?? ''} onChange={(e) => setCurve(i, 'until', e.target.value)} />
+                </label>
+              ) : (
+                <span className="muted" style={{ fontSize: 13 }}>{t('coinUntilFinal')}</span>
+              )}
+              <label>{t('coinMult')}
+                <input type="number" min={0.05} max={5} step={0.05} value={p.multiplier} onChange={(e) => setCurve(i, 'multiplier', e.target.value)} />
+              </label>
+            </div>
+          ))}
+        </div>
+        {earning && (
+          <p className="muted mt">
+            {t('coinStatus', earning.index + 1, earning.multiplier, earning.lifetime, earning.avgDaily7)}
           </p>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { db, addPoints } from './db.js';
+import { db, addPoints, scaleAward } from './db.js';
 import { enabledTopicSet } from './curriculum.js';
 
 // Daily quests + practice-streak rewards.
@@ -148,11 +148,14 @@ export function practiceStreak(): number {
   return streak;
 }
 
-function tryAward(day: string, key: string, points: number, reason: string): boolean {
-  const info = db.prepare('INSERT OR IGNORE INTO daily_awards (day, key, points) VALUES (?, ?, ?)').run(day, key, points);
-  if (!info.changes) return false;
-  addPoints(points, reason);
-  return true;
+// Returns the actual coins granted (issuance curve applied), or 0 when the
+// award was already claimed today.
+function tryAward(day: string, key: string, rawPoints: number, reason: string): number {
+  const scaled = scaleAward(rawPoints);
+  const info = db.prepare('INSERT OR IGNORE INTO daily_awards (day, key, points) VALUES (?, ?, ?)').run(day, key, scaled);
+  if (!info.changes) return 0;
+  addPoints(scaled, reason);
+  return scaled;
 }
 
 // Compute quest state, auto-award any newly completed quests plus the
@@ -174,17 +177,20 @@ export function evaluateQuests(): {
     const progress = Math.min(q.target, metricProgress(q, day));
     const done = progress >= q.target;
     if (done && !awardedKeys.has(q.key)) {
-      if (tryAward(day, q.key, q.points, `Daily quest: ${q.label}`)) {
-        newAwards.push({ key: q.key, label: q.label, emoji: q.emoji, points: q.points });
+      const got = tryAward(day, q.key, q.points, `Daily quest: ${q.label}`);
+      if (got) {
+        newAwards.push({ key: q.key, label: q.label, emoji: q.emoji, points: got });
         awardedKeys.add(q.key);
       }
     }
-    return { ...q, progress, done, awarded: awardedKeys.has(q.key) };
+    // Display the issuance-curve-adjusted value so the card never over-promises.
+    return { ...q, points: scaleAward(q.points), progress, done, awarded: awardedKeys.has(q.key) };
   });
 
   if (quests.every((q) => q.done) && !awardedKeys.has('sweep')) {
-    if (tryAward(day, 'sweep', SWEEP_POINTS, 'Daily sweep: all quests complete!')) {
-      newAwards.push({ key: 'sweep', label: 'All quests complete!', emoji: '🎉', points: SWEEP_POINTS });
+    const got = tryAward(day, 'sweep', SWEEP_POINTS, 'Daily sweep: all quests complete!');
+    if (got) {
+      newAwards.push({ key: 'sweep', label: 'All quests complete!', emoji: '🎉', points: got });
       awardedKeys.add('sweep');
     }
   }
@@ -194,9 +200,9 @@ export function evaluateQuests(): {
     `SELECT 1 AS x FROM attempts WHERE correct = 1 AND date(created_at,'localtime') = ? LIMIT 1`
   ).get(day)) !== undefined;
   if (streak >= 2 && hasCorrectToday && !awardedKeys.has('streak')) {
-    const pts = Math.min(2 * streak, 14);
-    if (tryAward(day, 'streak', pts, `Practice streak: day ${streak}`)) {
-      newAwards.push({ key: 'streak', label: `${streak}-day streak!`, emoji: '🔥', points: pts });
+    const got = tryAward(day, 'streak', Math.min(2 * streak, 14), `Practice streak: day ${streak}`);
+    if (got) {
+      newAwards.push({ key: 'streak', label: `${streak}-day streak!`, emoji: '🔥', points: got });
     }
   }
 
