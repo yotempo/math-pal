@@ -128,7 +128,7 @@ const defaultSettings: Record<string, string> = {
   buddy_name: 'Kai',
   target_difficulty: '2',
   tutor_language: 'English',
-  interests: 'volleyball, Haikyuu!!, My Hero Academia',
+  interests: 'volleyball, Haikyuu!!, My Hero Academia, Bungo Stray Dogs, Stray Kids',
   // AI provider selection (API keys live in server/.env, never here)
   ai_provider: 'claude',
   ai_model_claude: 'claude-opus-4-8',

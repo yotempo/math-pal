@@ -16,7 +16,7 @@ import { enabledTopicsFor } from './curriculum.js';
 // the parent is the final gate either way.
 
 export const WORD_TOPICS = ['multi_step', 'fractions', 'percent', 'ratio', 'rate', 'average', 'geometry', 'equations'] as const;
-const THEMES = ['volleyball', 'haikyuu', 'mha', 'general'] as const;
+const THEMES = ['volleyball', 'haikyuu', 'mha', 'bsd', 'skz', 'general'] as const;
 
 export interface GenerateOptions {
   count: number;
@@ -69,6 +69,8 @@ const THEME_DESCRIPTIONS: Record<string, string> = {
   volleyball: 'volleyball practice/matches (courts, serves, spikes, teams)',
   haikyuu: 'the anime Haikyuu!! (Hinata, Kageyama, Karasuno, Nekoma — keep facts generic, invent the numbers)',
   mha: 'the anime My Hero Academia (Deku, All Might, U.A., quirks — keep facts generic, invent the numbers)',
+  bsd: 'the anime Bungo Stray Dogs (Atsushi, Dazai, Ranpo, Kyoka, the Armed Detective Agency — keep it lighthearted: solving cases, notebooks, snacks; invent all numbers)',
+  skz: 'the K-pop group Stray Kids (8 members incl. Felix, Hyunjin, Han — albums, photocards, dance practice, concerts, Felix baking brownies; invent all numbers)',
   general: 'everyday life (shopping, baking, trips, school)',
 };
 

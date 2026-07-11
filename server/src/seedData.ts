@@ -368,6 +368,122 @@ export const wordProblems: SeedWordProblem[] = [
     hints: ['After 1 hour: 2. After 2 hours: 4. Keep doubling.', 'That is 2 multiplied by itself 6 times.', '2⁶ = ?'],
     explanation: 'Doubling 6 times: 2⁶ = 64 cells.',
   },
+
+  // ---- Bungo Stray Dogs themed ----
+  {
+    topic: 'multi_step', difficulty: 2, theme: 'bsd',
+    prompt: 'The Armed Detective Agency solved 8 cases in June and 13 cases in July. Each solved case earns a $25 reward. How much reward money did they earn in total?',
+    answer: '525', answerType: 'number',
+    hints: ['First find the total number of cases.', '8 + 13 = 21 cases.', 'Multiply 21 cases by $25 each.'],
+    explanation: '8 + 13 = 21 cases. 21 × 25 = $525.',
+  },
+  {
+    topic: 'fractions', difficulty: 3, theme: 'bsd',
+    prompt: 'Kyoka bought 24 rice crackers. She gave 3/8 of them to Atsushi. How many crackers does she have left?',
+    answer: '15', answerType: 'number',
+    hints: ['First find how many crackers 3/8 of 24 is.', '24 ÷ 8 = 3, so 1/8 is 3 crackers and 3/8 is 9.', 'Subtract the 9 she gave away from 24.'],
+    explanation: '3/8 of 24 = 9 crackers given away. 24 − 9 = 15 left.',
+  },
+  {
+    topic: 'percent', difficulty: 4, theme: 'bsd',
+    prompt: "A detective coat like Dazai's costs $80. It is on sale for 35% off. What is the sale price in dollars?",
+    answer: '52', answerType: 'number',
+    hints: ['First find the discount amount.', '35% of 80 = 0.35 × 80.', 'The discount is $28. Subtract it from $80.'],
+    explanation: '35% of $80 = $28 off. 80 − 28 = $52.',
+  },
+  {
+    topic: 'rate', difficulty: 3, theme: 'bsd',
+    prompt: 'Kunikida writes 4 pages of plans in his notebook every 10 minutes. At this rate, how many pages does he write in one hour?',
+    answer: '24', answerType: 'number',
+    hints: ['How many 10-minute chunks are in one hour?', 'There are 6 chunks of 10 minutes.', '6 chunks × 4 pages each = ?'],
+    explanation: '60 ÷ 10 = 6 chunks. 6 × 4 = 24 pages.',
+  },
+  {
+    topic: 'equations', difficulty: 4, theme: 'bsd',
+    prompt: 'Ranpo left a puzzle: "Multiply the secret room number by 3, subtract 7, and you get 29." What is the room number?',
+    answer: '12', answerType: 'number',
+    hints: ['Work backwards from 29.', 'Undo the "−7" first: 29 + 7 = 36.', 'Now undo the "× 3".'],
+    explanation: '29 + 7 = 36, then 36 ÷ 3 = 12. (As an equation: 3x − 7 = 29.)',
+  },
+  {
+    topic: 'average', difficulty: 4, theme: 'bsd',
+    prompt: 'Over four weeks, the Agency solved 12, 9, 15, and 8 cases. What was the average number of cases per week?',
+    answer: '11', answerType: 'number',
+    hints: ['Average = total ÷ number of weeks.', 'Add the four numbers first.', 'The total is 44. Divide by 4.'],
+    explanation: '12 + 9 + 15 + 8 = 44. 44 ÷ 4 = 11 cases per week.',
+  },
+  {
+    topic: 'geometry', difficulty: 3, theme: 'bsd',
+    prompt: "The Agency's office floor is a rectangle 9 m long and 6 m wide. They want new carpet for the whole floor. How many square meters of carpet do they need?",
+    answer: '54', answerType: 'number',
+    hints: ['Carpet covers the area of the floor.', 'Area of a rectangle = length × width.', '9 × 6 = ?'],
+    explanation: 'Area = 9 × 6 = 54 m².',
+  },
+  {
+    topic: 'ratio', difficulty: 3, theme: 'bsd',
+    prompt: 'For every 3 clues Atsushi finds, Dazai finds 5. If Atsushi found 12 clues on a case, how many did Dazai find?',
+    answer: '20', answerType: 'number',
+    hints: ['The ratio is 3:5.', 'How many groups of 3 clues make 12?', '4 groups — so Dazai found 4 × 5 clues.'],
+    explanation: '12 ÷ 3 = 4 groups. 4 × 5 = 20 clues.',
+  },
+
+  // ---- Stray Kids themed ----
+  {
+    topic: 'multi_step', difficulty: 3, theme: 'skz',
+    prompt: 'Stray Kids has 8 members. For a fan meeting, each member signs 45 photocards, and the staff adds 120 extra pre-signed cards. How many signed cards are there in total?',
+    answer: '480', answerType: 'number',
+    hints: ['First find how many cards the members sign.', '8 × 45 = 360 cards.', 'Now add the 120 extra cards.'],
+    explanation: '8 × 45 = 360. 360 + 120 = 480 cards.',
+  },
+  {
+    topic: 'percent', difficulty: 3, theme: 'skz',
+    prompt: 'A Stray Kids album costs $20. With a 15% fan-club discount, what is the price in dollars?',
+    answer: '17', answerType: 'number',
+    hints: ['First find the discount in dollars.', '15% of 20 = 0.15 × 20 = 3.', 'Subtract $3 from $20.'],
+    explanation: '15% of $20 = $3 off. 20 − 3 = $17.',
+  },
+  {
+    topic: 'rate', difficulty: 3, theme: 'skz',
+    prompt: 'Felix bakes 12 brownies every 40 minutes. How many brownies can he bake in 2 hours?',
+    answer: '36', answerType: 'number',
+    hints: ['How many minutes are in 2 hours?', '120 minutes. How many 40-minute rounds is that?', '3 rounds × 12 brownies each = ?'],
+    explanation: '2 h = 120 min = three 40-minute rounds. 3 × 12 = 36 brownies.',
+  },
+  {
+    topic: 'fractions', difficulty: 4, theme: 'skz',
+    prompt: 'Hyunjin practiced a dance for 3/4 of an hour in the morning and 5/6 of an hour in the evening. How many hours did he practice in total? Give your answer as a fraction or mixed number.',
+    answer: '19/12', answerType: 'fraction',
+    hints: ['Find a common denominator for 4 and 6.', 'Use 12: convert both fractions into twelfths.', '3/4 = 9/12 and 5/6 = 10/12. Add them.'],
+    explanation: '3/4 = 9/12, 5/6 = 10/12. 9/12 + 10/12 = 19/12 = 1 7/12 hours.',
+  },
+  {
+    topic: 'average', difficulty: 5, theme: 'skz',
+    prompt: "In four dance practice runs, Han's scores were 82, 88, 91, and 85. What score does he need on the fifth run for an average of exactly 88?",
+    answer: '94', answerType: 'number',
+    hints: ['If the average of 5 runs is 88, what must the TOTAL be?', 'The total must be 5 × 88 = 440.', 'Add the four scores (346) and subtract from 440.'],
+    explanation: '5 × 88 = 440 needed. 82 + 88 + 91 + 85 = 346. 440 − 346 = 94.',
+  },
+  {
+    topic: 'multi_step', difficulty: 2, theme: 'skz',
+    prompt: 'A concert lightstick costs $35. Elena saves $6 each week. After 5 weeks of saving, how many more dollars does she still need?',
+    answer: '5', answerType: 'number',
+    hints: ['First find how much she saves in 5 weeks.', '5 × 6 = 30 dollars saved.', 'Subtract her savings from the price.'],
+    explanation: '5 × 6 = $30 saved. 35 − 30 = $5 more needed.',
+  },
+  {
+    topic: 'ratio', difficulty: 4, theme: 'skz',
+    prompt: 'In one song, the fan chant follows a pattern: for every 4 lines the members sing, the fans chant 3 lines. If the members sing 28 lines, how many lines do the fans chant?',
+    answer: '21', answerType: 'number',
+    hints: ['The ratio of sung lines to chant lines is 4:3.', 'How many groups of 4 sung lines are in 28?', '7 groups × 3 chant lines each = ?'],
+    explanation: '28 ÷ 4 = 7 groups. 7 × 3 = 21 chant lines.',
+  },
+  {
+    topic: 'equations', difficulty: 5, theme: 'skz',
+    prompt: 'Elena gave away 14 photocards, then split the rest equally into 4 albums with 9 cards in each album. How many photocards did she start with?',
+    answer: '50', answerType: 'number',
+    hints: ['Work backwards from the end.', '4 albums × 9 cards = 36 cards after giving some away.', 'Before giving away 14, she had 36 + 14.'],
+    explanation: '4 × 9 = 36 left after giving away 14, so she started with 36 + 14 = 50.',
+  },
 ];
 
 export const rewards = [

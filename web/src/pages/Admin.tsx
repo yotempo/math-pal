@@ -197,7 +197,7 @@ function Overview() {
 // ---------------- Questions ----------------
 
 const TOPIC_OPTIONS = ['multi_step', 'fractions', 'percent', 'ratio', 'rate', 'average', 'geometry', 'equations'];
-const THEME_OPTIONS = ['volleyball', 'haikyuu', 'mha', 'general'];
+const THEME_OPTIONS = ['volleyball', 'haikyuu', 'mha', 'bsd', 'skz', 'general'];
 
 const emptyQuestion = {
   id: 0, topic: 'multi_step', difficulty: 2, theme: 'general', prompt: '', answer: '',
