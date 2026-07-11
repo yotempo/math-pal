@@ -120,7 +120,25 @@ CREATE TABLE IF NOT EXISTS ai_chats (
   const cols = (db.prepare('PRAGMA table_info(questions)').all() as { name: string }[]).map((c) => c.name);
   if (!cols.includes('source')) db.exec(`ALTER TABLE questions ADD COLUMN source TEXT NOT NULL DEFAULT 'seed'`);
   if (!cols.includes('verified')) db.exec(`ALTER TABLE questions ADD COLUMN verified INTEGER NOT NULL DEFAULT 1`);
+  const aCols = (db.prepare('PRAGMA table_info(attempts)').all() as { name: string }[]).map((c) => c.name);
+  // Seconds from question served (or previous attempt) to this attempt.
+  // NULL for rows recorded before this feature or where timing doesn't apply.
+  if (!aCols.includes('elapsed_sec')) db.exec('ALTER TABLE attempts ADD COLUMN elapsed_sec INTEGER');
 }
+
+// Estimated AI spend, for the monthly budget circuit breaker (admin panel).
+db.exec(`
+CREATE TABLE IF NOT EXISTS ai_usage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  input_chars INTEGER NOT NULL,
+  output_chars INTEGER NOT NULL,
+  est_cost_usd REAL NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`);
 
 const defaultSettings: Record<string, string> = {
   admin_pin: '1234',
@@ -137,6 +155,11 @@ const defaultSettings: Record<string, string> = {
   ai_model_ollama: 'gpt-oss:20b',
   // Curriculum scope: JSON array of topic keys the student currently sees.
   enabled_topics: JSON.stringify(ALL_TOPIC_KEYS),
+  // AI cost guard: estimated monthly budget in USD for PAID providers
+  // (Ollama is free and never blocked). Empty or 0 = no limit.
+  ai_monthly_budget_usd: '5',
+  // Backup provider tried automatically when the active one fails ('none' to disable).
+  ai_fallback_provider: 'none',
 };
 
 const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');

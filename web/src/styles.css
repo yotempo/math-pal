@@ -160,6 +160,14 @@ table.data th { color: var(--muted); font-size: 12px; text-transform: uppercase;
 }
 .pill-options button.selected { border-color: var(--primary); background: #fff7ed; color: var(--primary-dark); }
 
+/* fandom encouragement */
+.encourage-bubble {
+  margin-top: 10px; padding: 12px 16px; border-radius: 16px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #78350f; font-weight: 700; font-size: 16px;
+  animation: pop 0.35s ease;
+}
+
 /* show-your-work review */
 .work-input {
   width: 100%; min-height: 80px; resize: vertical;

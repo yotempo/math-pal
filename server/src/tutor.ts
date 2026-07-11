@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Agent, fetch as undiciFetch } from 'undici';
 import { db, getSetting } from './db.js';
+import { slowTopics } from './analytics.js';
 
 // AI study buddy. Socratic style: guides toward the answer, never gives it away.
 //
@@ -43,11 +44,86 @@ export function providerKeyConfigured(p: Provider): boolean {
 // null/absent = unknown; set true on first success, false on auth failure.
 const healthy = new Map<Provider, boolean>();
 
+// ---- cost estimation & monthly budget circuit breaker -------------------------
+// Providers don't share a uniform billing API, so we estimate: tokens ≈ chars/4
+// times a per-model price table. Conservative and clearly labeled an estimate
+// in the admin UI. Ollama is local and free — never blocked.
+
+function pricePerMTok(provider: Provider, model: string): { in_: number; out: number } {
+  const m = model.toLowerCase();
+  switch (provider) {
+    case 'claude':
+      if (m.includes('haiku')) return { in_: 1, out: 5 };
+      if (m.includes('sonnet')) return { in_: 3, out: 15 };
+      if (m.includes('fable') || m.includes('mythos')) return { in_: 10, out: 50 };
+      return { in_: 5, out: 25 }; // opus tier
+    case 'gemini':
+      if (m.includes('pro')) return { in_: 1.25, out: 10 };
+      return { in_: 0.3, out: 2.5 }; // flash tier
+    case 'openai':
+      if (m.includes('nano')) return { in_: 0.05, out: 0.4 };
+      if (m.includes('mini')) return { in_: 0.25, out: 2 };
+      return { in_: 1.25, out: 10 };
+    case 'ollama':
+      return { in_: 0, out: 0 };
+  }
+}
+
+function recordUsage(provider: Provider, model: string, kind: string, inputChars: number, outputChars: number) {
+  const price = pricePerMTok(provider, model);
+  const cost = (inputChars / 4 / 1e6) * price.in_ + (outputChars / 4 / 1e6) * price.out;
+  db.prepare(
+    'INSERT INTO ai_usage (provider, model, kind, input_chars, output_chars, est_cost_usd) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(provider, model, kind, inputChars, outputChars, cost);
+}
+
+export function budgetUsd(): number {
+  const v = parseFloat(getSetting('ai_monthly_budget_usd'));
+  return Number.isFinite(v) && v > 0 ? v : 0; // 0 = unlimited
+}
+
+export function monthSpendUsd(): number {
+  const row = db.prepare(
+    `SELECT COALESCE(SUM(est_cost_usd), 0) AS s FROM ai_usage
+     WHERE created_at >= datetime(date('now','localtime','start of month'))`
+  ).get() as { s: number };
+  return row.s;
+}
+
+function budgetExceeded(p: Provider): boolean {
+  if (p === 'ollama') return false;
+  const budget = budgetUsd();
+  return budget > 0 && monthSpendUsd() >= budget;
+}
+
+export function aiUsageSummary() {
+  const byProvider = db.prepare(
+    `SELECT provider, COUNT(*) AS calls, COALESCE(SUM(est_cost_usd), 0) AS estUsd
+     FROM ai_usage
+     WHERE created_at >= datetime(date('now','localtime','start of month'))
+     GROUP BY provider ORDER BY estUsd DESC`
+  ).all();
+  return { monthSpendUsd: monthSpendUsd(), budgetUsd: budgetUsd(), byProvider };
+}
+
+// ---- failover -------------------------------------------------------------------
+
+export function fallbackProvider(): Provider | null {
+  const p = getSetting('ai_fallback_provider') as Provider;
+  return PROVIDERS.includes(p) ? p : null;
+}
+
+function providerUsable(p: Provider): boolean {
+  return providerKeyConfigured(p) && !budgetExceeded(p);
+}
+
 export function aiAvailable(): boolean {
   const p = currentProvider();
   const h = healthy.get(p);
-  if (h !== undefined) return h;
-  return providerKeyConfigured(p);
+  const primaryOk = (h !== undefined ? h : providerKeyConfigured(p)) && !budgetExceeded(p);
+  if (primaryOk) return true;
+  const fb = fallbackProvider();
+  return fb !== null && fb !== p && providerUsable(fb);
 }
 
 // ---------------------------------------------------------------------------
@@ -85,10 +161,13 @@ function studentContext(): string {
 
   const notes = db.prepare('SELECT note FROM tutor_notes ORDER BY id DESC LIMIT 5').all() as { note: string }[];
 
+  const slow = slowTopics().map((s) => `${s.topic} (~${Math.round(s.avgSec / 60)} min vs her usual ~${Math.round(s.expectedSec / 60)} min)`);
+
   const parts = [
     `Student: ${name}, just finished 5th grade, completed Saxon Math Course 2.`,
     interests ? `Her interests: ${interests}. Use these for encouragement and examples when natural — don't force it.` : '',
     weak.length ? `Topics she has been struggling with recently: ${weak.join(', ')}. Be extra patient and thorough on these.` : '',
+    slow.length ? `Topics that take her noticeably longer than her usual pace (treat as weak spots too): ${slow.join(', ')}.` : '',
     strong.length ? `Topics she is strong at: ${strong.join(', ')}.` : '',
     notes.length ? `Notes from her parent for you:\n${notes.map((n) => `- ${n.note}`).join('\n')}` : '',
   ];
@@ -234,48 +313,70 @@ async function callOllama(system: string, context: string, messages: ChatMessage
   return data.message?.content ?? '';
 }
 
-// Generic single-turn completion for internal pipelines (question generation,
-// blind-solve verification). Unlike tutorChat there is NO fallback — callers
-// must handle errors themselves.
-export async function aiComplete(system: string, user: string): Promise<string> {
-  const provider = currentProvider();
-  const messages: ChatMessage[] = [{ role: 'user', content: user }];
-  let text: string;
-  switch (provider) {
-    case 'claude': text = await callClaude(system, '', messages, PIPELINE_TOKENS); break;
-    case 'gemini': text = await callGemini(system, '', messages, PIPELINE_TOKENS); break;
-    case 'openai': text = await callOpenAI(system, '', messages, PIPELINE_TOKENS); break;
-    case 'ollama': text = await callOllama(system, '', messages, PIPELINE_TOKENS); break;
+// Dispatch one call to a specific provider: budget gate → call → usage log.
+async function dispatchProvider(
+  p: Provider, system: string, context: string, messages: ChatMessage[], maxTokens: number, kind: string,
+): Promise<string> {
+  if (budgetExceeded(p)) {
+    throw new Error(`${p}: monthly AI budget reached — paid calls paused (see admin settings)`);
   }
-  healthy.set(provider, true);
+  let text: string;
+  switch (p) {
+    case 'claude': text = await callClaude(system, context, messages, maxTokens); break;
+    case 'gemini': text = await callGemini(system, context, messages, maxTokens); break;
+    case 'openai': text = await callOpenAI(system, context, messages, maxTokens); break;
+    case 'ollama': text = await callOllama(system, context, messages, maxTokens); break;
+  }
+  healthy.set(p, true);
+  const inputChars = system.length + context.length + messages.reduce((s, m) => s + m.content.length, 0);
+  recordUsage(p, modelFor(p), kind, inputChars, text.length);
+  return text;
+}
+
+// Try the active provider; if it fails (network, auth, budget), try the
+// configured backup provider once. Throws the last error if both fail.
+async function callWithFailover(
+  system: string, context: string, messages: ChatMessage[], maxTokens: number, kind: string,
+): Promise<{ text: string; provider: Provider }> {
+  const primary = currentProvider();
+  try {
+    return { text: await dispatchProvider(primary, system, context, messages, maxTokens, kind), provider: primary };
+  } catch (err) {
+    const msg = describeError(err);
+    console.error(`[ai] ${primary} (${kind}) error:`, msg);
+    if (/auth|api.key|401|403|Could not resolve/i.test(msg)) healthy.set(primary, false);
+    const fb = fallbackProvider();
+    if (fb && fb !== primary && providerKeyConfigured(fb)) {
+      console.log(`[ai] failing over to ${fb}`);
+      return { text: await dispatchProvider(fb, system, context, messages, maxTokens, kind), provider: fb };
+    }
+    throw err;
+  }
+}
+
+// Generic single-turn completion for internal pipelines (question generation,
+// blind-solve verification, encouragement). Fails over to the backup provider;
+// if both fail, throws — callers handle errors themselves.
+export async function aiComplete(system: string, user: string, kind = 'pipeline'): Promise<string> {
+  const { text } = await callWithFailover(system, '', [{ role: 'user', content: user }], PIPELINE_TOKENS, kind);
   return text.trim();
 }
 
 // ---- entry point --------------------------------------------------------------
 
 export async function tutorChat(question: TutorQuestionContext, messages: ChatMessage[]): Promise<{ reply: string; source: 'ai' | 'fallback'; provider: Provider }> {
-  const provider = currentProvider();
   const system = systemPrompt();
   const context = contextBlock(question);
   const history = messages.length ? messages : [{ role: 'user' as const, content: 'Can you help me get started?' }];
 
   try {
-    let text: string;
-    switch (provider) {
-      case 'claude': text = await callClaude(system, context, history); break;
-      case 'gemini': text = await callGemini(system, context, history); break;
-      case 'openai': text = await callOpenAI(system, context, history); break;
-      case 'ollama': text = await callOllama(system, context, history); break;
-    }
-    text = text.trim();
-    if (!text) return { reply: fallbackReply(question), source: 'fallback', provider };
-    healthy.set(provider, true);
-    return { reply: text, source: 'ai', provider };
-  } catch (err) {
-    const msg = describeError(err);
-    console.error(`[tutor] ${provider} error:`, msg);
-    if (/auth|api.key|401|403|Could not resolve/i.test(msg)) healthy.set(provider, false);
-    return { reply: fallbackReply(question), source: 'fallback', provider };
+    const { text, provider } = await callWithFailover(system, context, history, CHAT_TOKENS, 'chat');
+    const reply = text.trim();
+    if (!reply) return { reply: fallbackReply(question), source: 'fallback', provider };
+    return { reply, source: 'ai', provider };
+  } catch {
+    // callWithFailover already logged the details.
+    return { reply: fallbackReply(question), source: 'fallback', provider: currentProvider() };
   }
 }
 
@@ -333,11 +434,11 @@ ${work}
 </work>`;
 
   try {
-    const text = (await aiComplete(reviewerSystem(), user)).trim();
-    if (!text) throw new Error('empty review');
-    return { feedback: text, source: 'ai', provider };
-  } catch (err) {
-    console.error(`[review] ${provider} error:`, describeError(err));
+    const { text, provider: used } = await callWithFailover(reviewerSystem(), '', [{ role: 'user', content: user }], PIPELINE_TOKENS, 'review');
+    if (!text.trim()) throw new Error('empty review');
+    return { feedback: text.trim(), source: 'ai', provider: used };
+  } catch {
+    // callWithFailover already logged the details.
     return {
       feedback: '(AI buddy is offline right now — but writing out your thinking is already a superpower! Show it to Mom or Dad. 💪)',
       source: 'fallback',

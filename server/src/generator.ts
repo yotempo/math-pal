@@ -2,6 +2,7 @@ import { db, getSetting } from './db.js';
 import { aiComplete, currentProvider, describeError } from './tutor.js';
 import { checkAnswer, parseNumeric } from './answers.js';
 import { enabledTopicsFor } from './curriculum.js';
+import { slowTopics } from './analytics.js';
 
 // Phase 2: AI-generated word problems.
 //
@@ -46,7 +47,10 @@ function weakWordTopics(): string[] {
      WHERE kind = 'word' AND attempt_no = 1 AND created_at > datetime('now', '-30 days')
      GROUP BY topic HAVING total >= 3`
   ).all() as { topic: string; total: number; correct: number }[];
-  return rows.filter((r) => r.correct / r.total < 0.7).map((r) => r.topic);
+  const byAccuracy = rows.filter((r) => r.correct / r.total < 0.7).map((r) => r.topic);
+  // Topics she solves correctly but unusually slowly count as weak too.
+  const bySpeed = slowTopics().filter((s) => s.kind === 'word').map((s) => s.topic);
+  return [...new Set([...byAccuracy, ...bySpeed])];
 }
 
 function pickTopic(requested: string): string {

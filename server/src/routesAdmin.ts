@@ -1,8 +1,9 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { db, getSetting, setSetting, pointsBalance, addPoints } from './db.js';
-import { PROVIDERS, providerKeyConfigured } from './tutor.js';
+import { PROVIDERS, providerKeyConfigured, aiUsageSummary } from './tutor.js';
 import { startGeneration, getLatestJob } from './generator.js';
 import { CURRICULUM, ALL_TOPIC_KEYS } from './curriculum.js';
+import { slowTopics, IDLE_SEC } from './analytics.js';
 
 export const adminRouter = Router();
 
@@ -38,21 +39,29 @@ adminRouter.get('/overview', (_req, res) => {
     `SELECT COUNT(*) AS total, COALESCE(SUM(correct), 0) AS correct FROM attempts
      WHERE attempt_no = 1 AND created_at > datetime('now', '-7 days')`
   ).get() as { total: number; correct: number };
+  // avg_sec excludes idle rows (walked away mid-question) but they stay in the log
   const perTopic = db.prepare(
-    `SELECT topic, kind, COUNT(*) AS total, SUM(correct) AS correct
+    `SELECT topic, kind, COUNT(*) AS total, SUM(correct) AS correct,
+            AVG(CASE WHEN elapsed_sec IS NOT NULL AND elapsed_sec > 0 AND elapsed_sec <= ${IDLE_SEC} THEN elapsed_sec END) AS avg_sec
      FROM attempts WHERE attempt_no = 1
      GROUP BY topic, kind ORDER BY total DESC`
   ).all();
-  const recent = db.prepare(
-    `SELECT kind, topic, difficulty, prompt, given, correct, attempt_no, mode, created_at
-     FROM attempts ORDER BY id DESC LIMIT 25`
+  // Full 7-day log with per-question time
+  const logs7d = db.prepare(
+    `SELECT kind, topic, difficulty, prompt, given, correct, attempt_no, mode, elapsed_sec, created_at
+     FROM attempts WHERE created_at > datetime('now', '-7 days')
+     ORDER BY id DESC LIMIT 300`
   ).all();
   const pendingRedemptions = db.prepare(
     `SELECT COUNT(*) AS n FROM redemptions WHERE status = 'pending'`
   ).get() as { n: number };
   const ledger = db.prepare('SELECT delta, reason, created_at FROM points_ledger ORDER BY id DESC LIMIT 20').all();
 
-  res.json({ points: pointsBalance(), week, perTopic, recent, pendingRedemptions: pendingRedemptions.n, ledger });
+  res.json({
+    points: pointsBalance(), week, perTopic, logs7d,
+    slowTopics: slowTopics(), idleSec: IDLE_SEC,
+    pendingRedemptions: pendingRedemptions.n, ledger,
+  });
 });
 
 adminRouter.post('/points', (req, res) => {
@@ -69,6 +78,7 @@ adminRouter.post('/points', (req, res) => {
 const EDITABLE_SETTINGS = [
   'admin_pin', 'student_name', 'buddy_name', 'target_difficulty', 'tutor_language', 'interests',
   'ai_provider', 'ai_model_claude', 'ai_model_gemini', 'ai_model_openai', 'ai_model_ollama',
+  'ai_fallback_provider', 'ai_monthly_budget_usd',
   'enabled_topics',
 ];
 
@@ -78,6 +88,7 @@ adminRouter.get('/settings', (_req, res) => {
   // Read-only metadata for the UI
   out._keyStatus = Object.fromEntries(PROVIDERS.map((p) => [p, providerKeyConfigured(p)]));
   out._curriculum = CURRICULUM;
+  out._aiUsage = aiUsageSummary();
   res.json(out);
 });
 

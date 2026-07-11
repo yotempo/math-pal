@@ -85,6 +85,7 @@ export interface AnswerResult {
   attemptNo: number;
   hint?: string | null;
   questAwards?: QuestAward[];
+  encouragement?: string | null;
 }
 
 export interface AppState {

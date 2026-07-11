@@ -6,6 +6,7 @@ import { registerQuestion, getPending, removePending } from './pending.js';
 import { aiAvailable } from './tutor.js';
 import { enabledTopicSet, enabledTopicsFor } from './curriculum.js';
 import { evaluateQuests, practiceStreak } from './quests.js';
+import { getEncouragement } from './encouragement.js';
 
 export const kidRouter = Router();
 
@@ -126,10 +127,16 @@ kidRouter.post('/answer', (req, res) => {
   q.lastAnswer = answer.trim();
   const correct = checkAnswer(q.answer, answer, q.answerType);
 
+  // Seconds since the question was served (first attempt) or since the
+  // previous attempt. Recorded raw; analytics excludes idle (>15 min) rows.
+  const now = Date.now();
+  const elapsedSec = Math.round((now - (q.lastAttemptAt ?? q.createdAt)) / 1000);
+  q.lastAttemptAt = now;
+
   db.prepare(
-    `INSERT INTO attempts (question_id, kind, topic, difficulty, prompt, given, correct, attempt_no, mode)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'practice')`
-  ).run(q.questionId, q.kind, q.topic, q.difficulty, q.prompt, answer.trim(), correct ? 1 : 0, q.attempts);
+    `INSERT INTO attempts (question_id, kind, topic, difficulty, prompt, given, correct, attempt_no, mode, elapsed_sec)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'practice', ?)`
+  ).run(q.questionId, q.kind, q.topic, q.difficulty, q.prompt, answer.trim(), correct ? 1 : 0, q.attempts, elapsedSec);
 
   if (correct) {
     const pts = pointsFor(q.kind, q.difficulty, q.attempts, q.revealed);
@@ -139,9 +146,10 @@ kidRouter.post('/answer', (req, res) => {
     q.solvedCorrect = true;
     // Daily quests / streak may have just completed with this answer.
     const questAwards = evaluateQuests().newAwards;
+    const encouragement = getEncouragement(q.topic, q.difficulty);
     return res.json({
       correct: true, points: pts, balance: pointsBalance(),
-      explanation: q.explanation, attemptNo: q.attempts, questAwards,
+      explanation: q.explanation, attemptNo: q.attempts, questAwards, encouragement,
     });
   }
 

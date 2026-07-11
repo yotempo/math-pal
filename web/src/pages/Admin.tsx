@@ -105,6 +105,13 @@ function AdminInner() {
 
 // ---------------- Overview ----------------
 
+function fmtSec(sec: number | null | undefined): string {
+  if (sec == null) return '—';
+  const s = Math.round(sec);
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`;
+}
+
 function Overview() {
   const { t } = useT();
   const [data, setData] = useState<any>(null);
@@ -142,36 +149,48 @@ function Overview() {
       <div className="card">
         <h2>{t('topicAccuracy')}</h2>
         <table className="data">
-          <thead><tr><th>{t('colTopic')}</th><th>{t('colKind')}</th><th>{t('colCount')}</th><th>{t('accuracy')}</th></tr></thead>
+          <thead><tr><th>{t('colTopic')}</th><th>{t('colKind')}</th><th>{t('colCount')}</th><th>{t('accuracy')}</th><th>{t('colAvgTime')}</th></tr></thead>
           <tbody>
-            {data.perTopic.map((row: any, i: number) => (
-              <tr key={i}>
-                <td>{row.topic}</td>
-                <td>{row.kind === 'word' ? t('kindWord') : t('kindArith')}</td>
-                <td>{row.total}</td>
-                <td style={{ color: row.correct / row.total < 0.7 ? 'var(--red)' : 'var(--green)' }}>
-                  {Math.round((100 * row.correct) / row.total)}%
-                </td>
-              </tr>
-            ))}
+            {data.perTopic.map((row: any, i: number) => {
+              const slow = (data.slowTopics ?? []).some((s: any) => s.topic === row.topic && s.kind === row.kind);
+              return (
+                <tr key={i}>
+                  <td>{row.topic}</td>
+                  <td>{row.kind === 'word' ? t('kindWord') : t('kindArith')}</td>
+                  <td>{row.total}</td>
+                  <td style={{ color: row.correct / row.total < 0.7 ? 'var(--red)' : 'var(--green)' }}>
+                    {Math.round((100 * row.correct) / row.total)}%
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap', color: slow ? 'var(--red)' : undefined }}>
+                    {fmtSec(row.avg_sec)}{slow ? ` ${t('slowTag')}` : ''}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
-        <p className="muted mt">{t('redNote')}</p>
+        <p className="muted mt">{t('redNote')} {t('slowNote')}</p>
       </div>
 
       <div className="card">
         <h2>{t('recentAttempts')}</h2>
         <table className="data">
-          <thead><tr><th>{t('colTime')}</th><th>{t('colQuestion')}</th><th>{t('colGiven')}</th><th>{t('colResult')}</th></tr></thead>
+          <thead><tr><th>{t('colTime')}</th><th>{t('colQuestion')}</th><th>{t('colGiven')}</th><th>{t('colResult')}</th><th>{t('colElapsed')}</th></tr></thead>
           <tbody>
-            {data.recent.map((a: any, i: number) => (
-              <tr key={i}>
-                <td style={{ whiteSpace: 'nowrap' }}>{a.created_at.slice(5, 16)}</td>
-                <td>{a.prompt.slice(0, 60)}{a.prompt.length > 60 ? '…' : ''}</td>
-                <td>{a.given}</td>
-                <td>{a.correct ? '✅' : '❌'}{a.attempt_no > 1 ? t('attemptNo', a.attempt_no) : ''}</td>
-              </tr>
-            ))}
+            {data.logs7d.map((a: any, i: number) => {
+              const idle = a.elapsed_sec != null && a.elapsed_sec > (data.idleSec ?? 900);
+              return (
+                <tr key={i}>
+                  <td style={{ whiteSpace: 'nowrap' }}>{a.created_at.slice(5, 16)}</td>
+                  <td>{a.prompt.slice(0, 60)}{a.prompt.length > 60 ? '…' : ''}</td>
+                  <td>{a.given}</td>
+                  <td>{a.correct ? '✅' : '❌'}{a.attempt_no > 1 ? t('attemptNo', a.attempt_no) : ''}</td>
+                  <td style={{ whiteSpace: 'nowrap', opacity: idle ? 0.6 : 1 }}>
+                    {fmtSec(a.elapsed_sec)}{idle ? ` ${t('idleTag')}` : ''}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -630,6 +649,7 @@ function Settings() {
   if (!s) return <div className="card center">{t('loading')}</div>;
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setS({ ...s, [k]: e.target.value });
   const keyStatus: Record<string, boolean> = (s as any)._keyStatus ?? {};
+  const aiUsage: { monthSpendUsd: number; budgetUsd: number; byProvider: any[] } | undefined = (s as any)._aiUsage;
   const curriculum: { key: string; label: any; topics: { key: string; label: any; kinds: string[] }[] }[] = (s as any)._curriculum ?? [];
 
   let enabledTopics: string[] = [];
@@ -703,11 +723,27 @@ function Settings() {
               <input value={s[modelKey] ?? ''} onChange={set(modelKey)} />
             </label>
           ))}
+          <label>{t('aiFallbackLabel')}
+            <select value={s.ai_fallback_provider ?? 'none'} onChange={set('ai_fallback_provider')}>
+              <option value="none">{t('fallbackNone')}</option>
+              {PROVIDER_INFO.map(([p, label]) => <option key={p} value={p}>{label}</option>)}
+            </select>
+          </label>
+          <label>{t('aiBudgetLabel')}
+            <input type="number" min={0} step={0.5} value={s.ai_monthly_budget_usd ?? '0'} onChange={set('ai_monthly_budget_usd')} />
+          </label>
         </div>
         <p className="muted mt">
           {t('aiKeyNote')}
           {PROVIDER_INFO.map(([p]) => `${p}${p === 'ollama' ? t('noKeyNeeded') : keyStatus[p] ? ' ✓' : ' ✗'}`).join('｜')}
         </p>
+        {aiUsage && (
+          <p className="muted">
+            💰 {t('aiUsageLine', aiUsage.monthSpendUsd.toFixed(3), aiUsage.budgetUsd > 0 ? `$${aiUsage.budgetUsd}` : t('aiUsageUnlimited'))}
+            {aiUsage.byProvider.length > 0 && <>（{aiUsage.byProvider.map((u: any) => `${u.provider} $${u.estUsd.toFixed(3)}`).join('｜')}）</>}
+            <br />{t('aiUsageNote')}
+          </p>
+        )}
       </div>
 
       <div className="card">

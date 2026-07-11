@@ -17,6 +17,7 @@ export interface PendingQuestion {
   attempts: number;
   revealed: boolean;
   createdAt: number;
+  lastAttemptAt?: number; // for per-attempt elapsed-time tracking
   // Post-solve state: kept so the AI can review her written work afterwards.
   solvedCorrect?: boolean;
   lastAnswer?: string;
