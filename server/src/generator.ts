@@ -93,9 +93,12 @@ function generationPrompt(topic: string, difficulty: number, theme: string): str
 
 Requirements:
 - Topic: ${topic}
-- Difficulty: ${difficulty}/5 (1 = single step, 3 = two steps, 5 = three or more steps)
+- Difficulty: ${difficulty}/5 (1 = single step; 3 = two to three steps; 5 = three or more steps, possibly mixing operations)
 - Theme: ${THEME_DESCRIPTIONS[theme] ?? theme}
-- The student is 11 years old, just finished 5th grade (Saxon Math Course 2 level). Her interests: ${interests || 'sports and anime'}.
+- The student is 11 years old, just finished 5th grade (Saxon Math Course 2 level) and finds short, round-number problems too easy. Her interests: ${interests || 'sports and anime'}.
+- Make it feel like a little story: 3-5 sentences with names and scene-setting, not a bare one-liner.
+- Use "awkward" numbers that force real computation (e.g. 4.75, 368, 5/8, 1,240) — avoid numbers so round the answer is obvious at a glance. The final answer must still come out exact (a clean number or simple fraction).
+- At difficulty 4-5, you MAY include one extra number that is NOT needed for the answer (a distractor), as long as the question stays unambiguous.
 - The problem must be self-contained, in English, with EXACTLY ONE numeric answer (a number or a simple fraction). No multi-part questions. Use metric units or dollars.
 - Compute the answer carefully, step by step, and make sure the "answer" field is exactly right.
 - Do NOT reuse these existing problems:

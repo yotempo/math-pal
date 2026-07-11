@@ -34,7 +34,7 @@ export interface QuestAward {
   points: number;
 }
 
-const SWEEP_POINTS = 10;
+const SWEEP_POINTS = 15;
 
 function today(): string {
   return (db.prepare(`SELECT date('now','localtime') AS d`).get() as { d: string }).d;
@@ -71,21 +71,21 @@ function weakestEnabledTopic(): string | null {
 
 function generateQuests(day: string): QuestDef[] {
   const quests: QuestDef[] = [
-    { key: 'drills', emoji: '⚡', label: 'Solve 6 drills correctly', target: 6, points: 6, metric: 'drills' },
-    { key: 'word', emoji: '📖', label: 'Solve 2 word problems correctly', target: 2, points: 8, metric: 'word' },
+    { key: 'drills', emoji: '⚡', label: 'Solve 10 drills correctly', target: 10, points: 8, metric: 'drills' },
+    { key: 'word', emoji: '📖', label: 'Solve 4 word problems correctly', target: 4, points: 12, metric: 'word' },
   ];
   const pick = hashStr(day) % 3;
   const weak = weakestEnabledTopic();
   if (pick === 2 && weak) {
     quests.push({
       key: `focus_${weak}`, emoji: '🎯',
-      label: `Solve 3 ${TOPIC_NAMES[weak] ?? weak} problems correctly`,
-      target: 3, points: 8, metric: 'topic', topic: weak,
+      label: `Solve 5 ${TOPIC_NAMES[weak] ?? weak} problems correctly`,
+      target: 5, points: 10, metric: 'topic', topic: weak,
     });
   } else if (pick === 1) {
     quests.push({ key: 'challenge', emoji: '🏆', label: 'Clear any challenge level (2+ stars)', target: 1, points: 10, metric: 'challenge' });
   } else {
-    quests.push({ key: 'combo', emoji: '🔥', label: 'Get 4 correct in a row', target: 4, points: 8, metric: 'combo' });
+    quests.push({ key: 'combo', emoji: '🔥', label: 'Get 6 correct in a row', target: 6, points: 10, metric: 'combo' });
   }
   return quests;
 }

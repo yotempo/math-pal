@@ -134,9 +134,9 @@ kidRouter.post('/answer', (req, res) => {
   q.lastAttemptAt = now;
 
   db.prepare(
-    `INSERT INTO attempts (question_id, kind, topic, difficulty, prompt, given, correct, attempt_no, mode, elapsed_sec)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'practice', ?)`
-  ).run(q.questionId, q.kind, q.topic, q.difficulty, q.prompt, answer.trim(), correct ? 1 : 0, q.attempts, elapsedSec);
+    `INSERT INTO attempts (question_id, kind, topic, difficulty, prompt, given, correct, attempt_no, mode, elapsed_sec, answer)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'practice', ?, ?)`
+  ).run(q.questionId, q.kind, q.topic, q.difficulty, q.prompt, answer.trim(), correct ? 1 : 0, q.attempts, elapsedSec, q.answer);
 
   if (correct) {
     const pts = pointsFor(q.kind, q.difficulty, q.attempts, q.revealed);
@@ -269,9 +269,9 @@ kidRouter.post('/challenges/runs/:runId/answer', (req, res) => {
   answers[index] = answer.trim();
 
   db.prepare(
-    `INSERT INTO attempts (question_id, kind, topic, difficulty, prompt, given, correct, attempt_no, mode)
-     VALUES (NULL, ?, ?, ?, ?, ?, ?, 1, 'challenge')`
-  ).run(q.kind, q.topic, q.difficulty, q.prompt, answer.trim(), correct ? 1 : 0);
+    `INSERT INTO attempts (question_id, kind, topic, difficulty, prompt, given, correct, attempt_no, mode, answer)
+     VALUES (NULL, ?, ?, ?, ?, ?, ?, 1, 'challenge', ?)`
+  ).run(q.kind, q.topic, q.difficulty, q.prompt, answer.trim(), correct ? 1 : 0, q.answer);
 
   const newCorrect = run.correct + (correct ? 1 : 0);
   db.prepare('UPDATE challenge_runs SET answers = ?, correct = ? WHERE id = ?')

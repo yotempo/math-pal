@@ -16,7 +16,7 @@ export type Provider = (typeof PROVIDERS)[number];
 
 const DEFAULT_MODELS: Record<Provider, string> = {
   claude: process.env.ANTHROPIC_MODEL || 'claude-opus-4-8',
-  gemini: 'gemini-2.5-flash',
+  gemini: 'gemini-flash-latest',
   openai: 'gpt-5-mini',
   // ≥20B recommended locally — smaller models (llama3 8B) fail the math-only
   // scope rules in testing; gpt-oss:20b holds them well.

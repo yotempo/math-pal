@@ -124,6 +124,9 @@ CREATE TABLE IF NOT EXISTS ai_chats (
   // Seconds from question served (or previous attempt) to this attempt.
   // NULL for rows recorded before this feature or where timing doesn't apply.
   if (!aCols.includes('elapsed_sec')) db.exec('ALTER TABLE attempts ADD COLUMN elapsed_sec INTEGER');
+  // The correct answer, so wrong attempts are fully reviewable in the admin
+  // log (generated arithmetic questions exist nowhere else once answered).
+  if (!aCols.includes('answer')) db.exec('ALTER TABLE attempts ADD COLUMN answer TEXT');
 }
 
 // Estimated AI spend, for the monthly budget circuit breaker (admin panel).
@@ -150,7 +153,7 @@ const defaultSettings: Record<string, string> = {
   // AI provider selection (API keys live in server/.env, never here)
   ai_provider: 'claude',
   ai_model_claude: 'claude-opus-4-8',
-  ai_model_gemini: 'gemini-2.5-flash',
+  ai_model_gemini: 'gemini-flash-latest',
   ai_model_openai: 'gpt-5-mini',
   ai_model_ollama: 'gpt-oss:20b',
   // Curriculum scope: JSON array of topic keys the student currently sees.

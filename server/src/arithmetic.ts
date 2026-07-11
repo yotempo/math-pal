@@ -82,8 +82,8 @@ function base(t: ArithmeticTopic, d: number, prompt: string, answer: string, hin
 }
 
 function genAddSub(d: number): GeneratedQuestion {
-  if (d <= 3) {
-    const digits = d === 1 ? [10, 99] : d === 2 ? [100, 999] : [1000, 9999];
+  if (d <= 2) {
+    const digits = d === 1 ? [10, 99] : [100, 999];
     const a = rnd(digits[0], digits[1]);
     const b = rnd(digits[0], digits[1]);
     const add = Math.random() < 0.5;
@@ -94,16 +94,29 @@ function genAddSub(d: number): GeneratedQuestion {
       ['Line up the digits by place value.', add ? 'Add column by column, starting from the ones.' : 'Subtract column by column; borrow if you need to.'],
       `${x} ${op} ${y} = ${ans}`);
   }
-  // decimals
-  const a = round2(rnd(100, 9999) / 100);
-  const b = round2(rnd(100, 9999) / 100);
-  const add = Math.random() < 0.5;
-  const [x, y] = add || a >= b ? [a, b] : [b, a];
-  const ans = round2(add ? x + y : x - y);
-  const op = add ? '+' : '−';
-  return base('add_sub', d, `${x.toFixed(2)} ${op} ${y.toFixed(2)} = ?`, String(ans),
-    ['Line up the decimal points first.', 'Then add or subtract just like whole numbers.'],
-    `${x.toFixed(2)} ${op} ${y.toFixed(2)} = ${ans}`);
+  if (d === 3) {
+    // three terms, results stay positive
+    const a = rnd(1000, 9999), b = rnd(100, 4999), c = rnd(100, Math.min(4999, a + b - 1));
+    return base('add_sub', d, `${a} + ${b} − ${c} = ?`, String(a + b - c),
+      ['Work left to right: add first, then subtract.', `${a} + ${b} = ${a + b}. Now subtract ${c}.`],
+      `${a} + ${b} = ${a + b}, then − ${c} = ${a + b - c}`);
+  }
+  // decimals (integer-cent math keeps answers exact)
+  if (d === 4) {
+    const A = rnd(100, 99999), B = rnd(100, 99999);
+    const [x, y] = A >= B ? [A, B] : [B, A];
+    const add = Math.random() < 0.5;
+    const ans = (add ? x + y : x - y) / 100;
+    const op = add ? '+' : '−';
+    return base('add_sub', d, `${(x / 100).toFixed(2)} ${op} ${(y / 100).toFixed(2)} = ?`, String(ans),
+      ['Line up the decimal points first.', 'Then add or subtract just like whole numbers.'],
+      `${(x / 100).toFixed(2)} ${op} ${(y / 100).toFixed(2)} = ${ans}`);
+  }
+  const A = rnd(1000, 99999), B = rnd(100, 49999), C = rnd(100, A + B - 1);
+  const ans = (A + B - C) / 100;
+  return base('add_sub', d, `${(A / 100).toFixed(2)} + ${(B / 100).toFixed(2)} − ${(C / 100).toFixed(2)} = ?`, String(ans),
+    ['Three numbers — keep the decimal points lined up and go left to right.', `First add the first two, then subtract the third.`],
+    `${(A / 100).toFixed(2)} + ${(B / 100).toFixed(2)} = ${((A + B) / 100).toFixed(2)}, then − ${(C / 100).toFixed(2)} = ${ans}`);
 }
 
 function genMult(d: number): GeneratedQuestion {
@@ -132,11 +145,13 @@ function genMult(d: number): GeneratedQuestion {
       ['Ignore the decimal first, multiply, then put the decimal back.'],
       `${a} × ${b} = ${ans}`);
   }
-  const a = round2(rnd(11, 99) / 10), b = round2(rnd(11, 99) / 10);
-  const ans = round2(a * b);
-  return base('mult', d, `${a} × ${b} = ?`, String(ans),
-    ['Multiply as whole numbers, then count decimal places in both factors.'],
-    `${a} × ${b} = ${ans}`);
+  // 2dp × 2-digit whole; integer math keeps the product exact
+  const A = rnd(101, 999), b = rnd(12, 99);
+  const a = A / 100;
+  const ans = (A * b) / 100;
+  return base('mult', d, `${a.toFixed(2)} × ${b} = ?`, String(ans),
+    ['Multiply as whole numbers, then put the two decimal places back.'],
+    `${a.toFixed(2)} × ${b} = ${ans}`);
 }
 
 function genDiv(d: number): GeneratedQuestion {
@@ -166,7 +181,7 @@ function genDiv(d: number): GeneratedQuestion {
       ['The answer is not a whole number — keep dividing past the decimal point.'],
       `${a} ÷ ${b} = ${q}`);
   }
-  const b = rnd(12, 40), q = rnd(25, 250);
+  const b = rnd(12, 40), q = rnd(250, 999);
   return base('div', d, `${b * q} ÷ ${b} = ?`, String(q),
     ['Long division with a 2-digit divisor: estimate, multiply, subtract, bring down.'],
     `${b * q} ÷ ${b} = ${q}`);
@@ -189,7 +204,7 @@ function genFractions(d: number): GeneratedQuestion {
       `${a}/${dd} + ${b}/${dd} = ${a + b}/${dd} = ${fracStr(a + b, dd)}`, 'fraction');
   }
   if (d === 3) {
-    const d1 = pick([2, 3, 4]), d2 = pick([3, 4, 5, 6, 8].filter((x) => x !== d1));
+    const d1 = pick([3, 4, 5, 6]), d2 = pick([4, 5, 6, 8, 9, 10, 12].filter((x) => x !== d1));
     const n1 = rnd(1, d1 - 1), n2 = rnd(1, d2 - 1);
     const cd = d1 * d2 / gcd(d1, d2);
     const sum = n1 * (cd / d1) + n2 * (cd / d2);
@@ -198,12 +213,12 @@ function genFractions(d: number): GeneratedQuestion {
       `${n1}/${d1} = ${n1 * (cd / d1)}/${cd}, ${n2}/${d2} = ${n2 * (cd / d2)}/${cd}. Sum = ${fracStr(sum, cd)}`, 'fraction');
   }
   if (d === 4) {
-    const n1 = rnd(1, 5), d1 = rnd(n1 + 1, 8), n2 = rnd(1, 5), d2 = rnd(n2 + 1, 8);
+    const n1 = rnd(2, 7), d1 = rnd(n1 + 1, 12), n2 = rnd(2, 7), d2 = rnd(n2 + 1, 12);
     return base('fractions', d, `${n1}/${d1} × ${n2}/${d2} = ? (simplify your answer)`, fracStr(n1 * n2, d1 * d2),
       ['Multiply the tops together and the bottoms together.', 'Then simplify the result.'],
       `${n1}/${d1} × ${n2}/${d2} = ${n1 * n2}/${d1 * d2} = ${fracStr(n1 * n2, d1 * d2)}`, 'fraction');
   }
-  const n1 = rnd(1, 5), d1 = rnd(n1 + 1, 8), n2 = rnd(1, 5), d2 = rnd(n2 + 1, 8);
+  const n1 = rnd(2, 7), d1 = rnd(n1 + 1, 12), n2 = rnd(2, 7), d2 = rnd(n2 + 1, 12);
   return base('fractions', d, `${n1}/${d1} ÷ ${n2}/${d2} = ? (simplify your answer)`, fracStr(n1 * d2, d1 * n2),
     ['Dividing by a fraction = multiplying by its flip (reciprocal).', `Rewrite as ${n1}/${d1} × ${d2}/${n2}.`],
     `${n1}/${d1} ÷ ${n2}/${d2} = ${n1}/${d1} × ${d2}/${n2} = ${fracStr(n1 * d2, d1 * n2)}`, 'fraction');
@@ -250,8 +265,8 @@ function genPercent(d: number): GeneratedQuestion {
       `${p}% of ${n} = ${(p / 100) * n}`);
   }
   if (d === 2) {
-    const p = pick([5, 15, 20, 30, 40, 60, 75]);
-    const n = rnd(2, 20) * 10;
+    const p = pick([5, 15, 20, 30, 35, 45, 60, 65, 85]);
+    const n = rnd(4, 40) * 20;
     return base('percent', d, `What is ${p}% of ${n}?`, String(round2((p / 100) * n)),
       ['Turn the percent into a decimal and multiply.', `${p}% = ${p / 100}`],
       `${p / 100} × ${n} = ${round2((p / 100) * n)}`);
@@ -397,12 +412,12 @@ function genEquations(d: number): GeneratedQuestion {
           `x = ${Math.floor(x / a) || 5} × ${a} = ${(Math.floor(x / a) || 5) * a}`);
   }
   if (d === 4) {
-    const x = rnd(2, 12), a = rnd(2, 9), b = rnd(1, 20);
+    const x = rnd(3, 15), a = rnd(3, 12), b = rnd(5, 30);
     return base('equations', d, `Solve for x:  ${a}x + ${b} = ${a * x + b}`, String(x),
       ['Two steps: first undo the + by subtracting from both sides.', `${a}x = ${a * x}. Now undo the multiplication.`],
       `${a}x = ${a * x + b} − ${b} = ${a * x}, so x = ${a * x} ÷ ${a} = ${x}`);
   }
-  const x = rnd(2, 12), a = rnd(2, 9), b = rnd(1, 15);
+  const x = rnd(3, 15), a = rnd(3, 12), b = rnd(5, 30);
   return base('equations', d, `Solve for x:  ${a}x − ${b} = ${a * x - b}`, String(x),
     ['Two steps: first undo the − by adding to both sides.', `${a}x = ${a * x}. Now divide.`],
     `${a}x = ${a * x - b} + ${b} = ${a * x}, so x = ${a * x} ÷ ${a} = ${x}`);

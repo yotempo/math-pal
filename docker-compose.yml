@@ -4,6 +4,10 @@ services:
     container_name: mathpal
     ports:
       - "8787:8787"
+    # API keys live in server/.env (gitignored — NEVER in .env.example, which
+    # is committed to the public repo). `environment` below overrides env_file.
+    env_file:
+      - server/.env
     environment:
       # Local timezone so "today" for daily quests/streaks matches the family's day
       - TZ=Asia/Taipei

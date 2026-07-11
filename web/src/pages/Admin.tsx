@@ -180,10 +180,18 @@ function Overview() {
             {data.logs7d.map((a: any, i: number) => {
               const idle = a.elapsed_sec != null && a.elapsed_sec > (data.idleSec ?? 900);
               return (
-                <tr key={i}>
+                <tr key={i} style={a.correct ? undefined : { background: '#fef2f2' }}>
                   <td style={{ whiteSpace: 'nowrap' }}>{a.created_at.slice(5, 16)}</td>
-                  <td>{a.prompt.slice(0, 60)}{a.prompt.length > 60 ? '…' : ''}</td>
-                  <td>{a.given}</td>
+                  <td>
+                    {/* Wrong answers keep the FULL question for review */}
+                    {a.correct ? <>{a.prompt.slice(0, 60)}{a.prompt.length > 60 ? '…' : ''}</> : a.prompt}
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {a.given}
+                    {!a.correct && a.answer != null && (
+                      <div style={{ color: 'var(--green)', fontWeight: 700 }}>{t('correctAnswerLabel')}: {a.answer}</div>
+                    )}
+                  </td>
                   <td>{a.correct ? '✅' : '❌'}{a.attempt_no > 1 ? t('attemptNo', a.attempt_no) : ''}</td>
                   <td style={{ whiteSpace: 'nowrap', opacity: idle ? 0.6 : 1 }}>
                     {fmtSec(a.elapsed_sec)}{idle ? ` ${t('idleTag')}` : ''}

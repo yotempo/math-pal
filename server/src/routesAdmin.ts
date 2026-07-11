@@ -48,7 +48,7 @@ adminRouter.get('/overview', (_req, res) => {
   ).all();
   // Full 7-day log with per-question time
   const logs7d = db.prepare(
-    `SELECT kind, topic, difficulty, prompt, given, correct, attempt_no, mode, elapsed_sec, created_at
+    `SELECT kind, topic, difficulty, prompt, given, correct, attempt_no, mode, elapsed_sec, answer, created_at
      FROM attempts WHERE created_at > datetime('now', '-7 days')
      ORDER BY id DESC LIMIT 300`
   ).all();
